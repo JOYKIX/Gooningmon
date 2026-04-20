@@ -4,6 +4,8 @@ import {
   GoogleAuthProvider,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut
 } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
 import {
@@ -36,6 +38,10 @@ const firebaseConfig = {
 const ADMIN_UIDS = [];
 const ADMIN_EMAILS = [];
 
+const APP_HOSTNAME = window.location.hostname;
+const EXPECTED_HOSTNAME = "joykix.github.io";
+const IS_GITHUB_PAGES = APP_HOSTNAME.endsWith(".github.io");
+
 const POKEMON_151 = [
   "Bulbizarre","Herbizarre","Florizarre","Salamèche","Reptincel","Dracaufeu","Carapuce","Carabaffe","Tortank","Chenipan","Chrysacier","Papilusion","Aspicot","Coconfort","Dardargnan","Roucool","Roucoups","Roucarnage","Rattata","Rattatac","Piafabec","Rapasdepic","Abo","Arbok","Pikachu","Raichu","Sabelette","Sablaireau","Nidoran♀","Nidorina","Nidoqueen","Nidoran♂","Nidorino","Nidoking","Mélofée","Mélodelfe","Goupix","Feunard","Rondoudou","Grodoudou","Nosferapti","Nosferalto","Mystherbe","Ortide","Rafflesia","Paras","Parasect","Mimitoss","Aéromite","Taupiqueur","Triopikeur","Miaouss","Persian","Psykokwak","Akwakwak","Férosinge","Colossinge","Caninos","Arcanin","Ptitard","Têtarte","Tartard","Abra","Kadabra","Alakazam","Machoc","Machopeur","Mackogneur","Chétiflor","Boustiflor","Empiflor","Tentacool","Tentacruel","Racaillou","Gravalanch","Grolem","Ponyta","Galopa","Ramoloss","Flagadoss","Magnéti","Magnéton","Canarticho","Doduo","Dodrio","Otaria","Lamantine","Tadmorv","Grotadmorv","Kokiyas","Crustabri","Fantominus","Spectrum","Ectoplasma","Onix","Soporifik","Hypnomade","Krabby","Krabboss","Voltorbe","Électrode","Noeunoeuf","Noadkoko","Osselait","Ossatueur","Kicklee","Tygnon","Excelangue","Smogo","Smogogo","Rhinocorne","Rhinoféros","Leveinard","Saquedeneu","Kangourex","Hypotrempe","Hypocéan","Poissirène","Poissoroy","Stari","Staross","M. Mime","Insécateur","Lippoutou","Élektek","Magmar","Scarabrute","Tauros","Magicarpe","Léviator","Lokhlass","Métamorph","Évoli","Aquali","Voltali","Pyroli","Porygon","Amonita","Amonistar","Kabuto","Kabutops","Ptéra","Ronflex","Artikodin","Électhor","Sulfura","Minidraco","Draco","Dracolosse","Mewtwo","Mew"
 ];
@@ -45,6 +51,7 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: "select_account" });
 
 const el = {
   authLoggedOut: document.getElementById("authLoggedOut"),
@@ -155,7 +162,9 @@ function renderAuthState() {
   el.appSection.classList.toggle("hidden", !logged);
 
   if (!logged) {
-    el.authStatus.textContent = "Non connecté.";
+    el.authStatus.textContent = IS_GITHUB_PAGES
+      ? "Non connecté. Utilise la connexion Google (popup/redirect)."
+      : `Non connecté. Pour GitHub Pages, ouvre ce site depuis https://${EXPECTED_HOSTNAME}.`;
     el.authUserPhoto.classList.add("hidden");
     el.authUserPhoto.removeAttribute("src");
     el.authUserName.textContent = "Compte connecté";
@@ -416,12 +425,36 @@ async function syncCurrentUser() {
 
 async function loginWithGoogle() {
   if (isAuthActionPending) return;
+
+  if (IS_GITHUB_PAGES && APP_HOSTNAME !== EXPECTED_HOSTNAME) {
+    showToast(`Domaine invalide (${APP_HOSTNAME}). Utilise https://${EXPECTED_HOSTNAME}.`, true);
+    return;
+  }
+
   isAuthActionPending = true;
   setAuthBusy(true);
   try {
     await signInWithPopup(auth, googleProvider);
   } catch (err) {
-    logFirebaseError("google-login", err);
+    logFirebaseError("google-login-popup", err);
+
+    const needsRedirectFallback = [
+      "auth/popup-blocked",
+      "auth/cancelled-popup-request",
+      "auth/operation-not-supported-in-this-environment"
+    ].includes(err?.code);
+
+    if (needsRedirectFallback) {
+      showToast("Popup bloquée, redirection en cours...");
+      await signInWithRedirect(auth, googleProvider);
+      return;
+    }
+
+    if (err?.code === "auth/unauthorized-domain") {
+      showToast(`Domaine non autorisé. Ajoute ${EXPECTED_HOSTNAME} dans Firebase Authentication > Authorized domains.`, true);
+      return;
+    }
+
     showToast(err.message || "Connexion Google impossible.", true);
   } finally {
     isAuthActionPending = false;
@@ -476,10 +509,29 @@ el.uploadForm.addEventListener("submit", async (e) => {
   }
 });
 
+function explainSetupIfNeeded() {
+  if (!IS_GITHUB_PAGES) return;
+  if (APP_HOSTNAME === EXPECTED_HOSTNAME) return;
+
+  console.warn(`[Firebase][auth-domain] Domaine courant: ${APP_HOSTNAME}. Domaine recommandé: ${EXPECTED_HOSTNAME}`);
+}
+
 async function boot() {
+  explainSetupIfNeeded();
   await ensurePokemonPool();
   bindGallery();
   bindAdmin();
+
+  try {
+    await getRedirectResult(auth);
+  } catch (err) {
+    logFirebaseError("google-login-redirect", err);
+    if (err?.code === "auth/unauthorized-domain") {
+      showToast(`Domaine non autorisé. Vérifie que ${EXPECTED_HOSTNAME} est ajouté dans Firebase.`, true);
+    } else {
+      showToast(err.message || "Retour de connexion Google impossible.", true);
+    }
+  }
 
   onAuthStateChanged(auth, async (authUser) => {
     try {
