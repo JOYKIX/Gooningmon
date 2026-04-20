@@ -92,6 +92,8 @@ const el = {
   uploadForm: document.getElementById("uploadForm"),
   uploadBtn: document.getElementById("uploadBtn"),
   drawingFile: document.getElementById("drawingFile"),
+  uploadFileInfo: document.getElementById("uploadFileInfo"),
+  uploadState: document.getElementById("uploadState"),
   gallery: document.getElementById("gallery"),
   fresqueGrid: document.getElementById("fresqueGrid"),
   fresqueInfo: document.getElementById("fresqueInfo"),
@@ -386,6 +388,7 @@ function renderMyPokemon() {
     el.assignBtn.disabled = true;
     el.rerollBtn.disabled = true;
     el.uploadBtn.disabled = true;
+    el.uploadState.textContent = "Pseudo requis.";
     el.restartBtn.classList.add("hidden");
     return;
   }
@@ -396,6 +399,7 @@ function renderMyPokemon() {
     el.assignBtn.disabled = false;
     el.rerollBtn.disabled = true;
     el.uploadBtn.disabled = true;
+    el.uploadState.textContent = "En attente.";
     el.restartBtn.classList.add("hidden");
     return;
   }
@@ -414,6 +418,7 @@ function renderMyPokemon() {
   el.assignBtn.disabled = true;
   el.rerollBtn.disabled = !isAssigned || rerollsUsed >= 3;
   el.uploadBtn.disabled = !isAssigned;
+  el.uploadState.textContent = isAssigned ? "Prêt." : "Terminé.";
   el.restartBtn.classList.toggle("hidden", !isCompleted);
 }
 
@@ -1359,14 +1364,23 @@ function bindEvents() {
     }
   });
 
+  el.drawingFile.addEventListener("change", () => {
+    const file = el.drawingFile.files?.[0];
+    el.uploadFileInfo.textContent = file ? `Fichier: ${file.name}` : "Aucun fichier.";
+  });
+
   el.uploadForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const file = el.drawingFile.files?.[0];
     if (!file) return;
     try {
+      el.uploadState.textContent = "Upload...";
       await uploadDrawing(file);
       el.uploadForm.reset();
+      el.uploadFileInfo.textContent = "Aucun fichier.";
+      el.uploadState.textContent = "Terminé.";
     } catch (err) {
+      el.uploadState.textContent = "Erreur upload.";
       showToast(err.message || "Upload impossible.", true);
     }
   });
