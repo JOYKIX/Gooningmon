@@ -3,28 +3,43 @@
     ".read": true,
     ".write": true,
     "users": {
-      ".indexOn": ["usernameNorm"],
+      ".indexOn": ["emailNorm", "role"],
       "$userId": {
-        ".validate": "newData.hasChildren(['username', 'usernameNorm', 'passwordHash', 'role'])",
-        "username": {
-          ".validate": "newData.isString() && newData.val().length >= 3 && newData.val().length <= 20"
+        ".validate": "newData.hasChildren(['displayName', 'email', 'provider', 'role'])",
+        "displayName": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 80"
         },
-        "usernameNorm": {
-          ".validate": "newData.isString() && newData.val().length >= 3 && newData.val().length <= 20"
+        "email": {
+          ".validate": "newData.isString() && newData.val().matches(/.+@.+\\..+/)"
         },
-        "passwordHash": {
-          ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{64}$/)"
+        "emailNorm": {
+          ".validate": "newData.isString() && newData.val().matches(/.+@.+\\..+/)"
+        },
+        "photoURL": {
+          ".validate": "newData.val() === null || newData.isString()"
+        },
+        "provider": {
+          ".validate": "newData.isString() && newData.val() === 'google'"
         },
         "role": {
           ".validate": "newData.isString() && (newData.val() === 'admin' || newData.val() === 'user')"
+        },
+        "isAdmin": {
+          ".validate": "newData.isBoolean()"
+        },
+        "rerollsUsed": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 3"
+        },
+        "pokemonId": {
+          ".validate": "newData.val() === null || (newData.isNumber() && newData.val() >= 1 && newData.val() <= 151)"
+        },
+        "status": {
+          ".validate": "newData.isString() && (newData.val() === 'idle' || newData.val() === 'assigned' || newData.val() === 'completed')"
         }
       }
     },
     "pokemon": {
       ".indexOn": ["status", "userId", "completedAt"]
-    },
-    "usernameIndex": {
-      ".indexOn": [".value"]
     }
   }
 }

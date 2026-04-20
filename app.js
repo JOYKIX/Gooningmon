@@ -1,15 +1,18 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
 import {
+  getAuth,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signInWithPopup,
+  signOut
+} from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
+import {
   getDatabase,
   ref,
   get,
   set,
   update,
-  child,
   runTransaction,
-  query,
-  orderByChild,
-  equalTo,
   onValue
 } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-database.js";
 import {
@@ -30,23 +33,29 @@ const firebaseConfig = {
   appId: "1:79079678682:web:98dd5a684859ee98273be3"
 };
 
+const ADMIN_UIDS = [];
+const ADMIN_EMAILS = [];
+
 const POKEMON_151 = [
   "Bulbizarre","Herbizarre","Florizarre","Salamèche","Reptincel","Dracaufeu","Carapuce","Carabaffe","Tortank","Chenipan","Chrysacier","Papilusion","Aspicot","Coconfort","Dardargnan","Roucool","Roucoups","Roucarnage","Rattata","Rattatac","Piafabec","Rapasdepic","Abo","Arbok","Pikachu","Raichu","Sabelette","Sablaireau","Nidoran♀","Nidorina","Nidoqueen","Nidoran♂","Nidorino","Nidoking","Mélofée","Mélodelfe","Goupix","Feunard","Rondoudou","Grodoudou","Nosferapti","Nosferalto","Mystherbe","Ortide","Rafflesia","Paras","Parasect","Mimitoss","Aéromite","Taupiqueur","Triopikeur","Miaouss","Persian","Psykokwak","Akwakwak","Férosinge","Colossinge","Caninos","Arcanin","Ptitard","Têtarte","Tartard","Abra","Kadabra","Alakazam","Machoc","Machopeur","Mackogneur","Chétiflor","Boustiflor","Empiflor","Tentacool","Tentacruel","Racaillou","Gravalanch","Grolem","Ponyta","Galopa","Ramoloss","Flagadoss","Magnéti","Magnéton","Canarticho","Doduo","Dodrio","Otaria","Lamantine","Tadmorv","Grotadmorv","Kokiyas","Crustabri","Fantominus","Spectrum","Ectoplasma","Onix","Soporifik","Hypnomade","Krabby","Krabboss","Voltorbe","Électrode","Noeunoeuf","Noadkoko","Osselait","Ossatueur","Kicklee","Tygnon","Excelangue","Smogo","Smogogo","Rhinocorne","Rhinoféros","Leveinard","Saquedeneu","Kangourex","Hypotrempe","Hypocéan","Poissirène","Poissoroy","Stari","Staross","M. Mime","Insécateur","Lippoutou","Élektek","Magmar","Scarabrute","Tauros","Magicarpe","Léviator","Lokhlass","Métamorph","Évoli","Aquali","Voltali","Pyroli","Porygon","Amonita","Amonistar","Kabuto","Kabutops","Ptéra","Ronflex","Artikodin","Électhor","Sulfura","Minidraco","Draco","Dracolosse","Mewtwo","Mew"
 ];
 
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 const db = getDatabase(app);
 const storage = getStorage(app);
+const googleProvider = new GoogleAuthProvider();
 
 const el = {
-  authSection: document.getElementById("authSection"),
+  authLoggedOut: document.getElementById("authLoggedOut"),
+  authLoggedIn: document.getElementById("authLoggedIn"),
+  authUserPhoto: document.getElementById("authUserPhoto"),
+  authUserName: document.getElementById("authUserName"),
+  authUserEmail: document.getElementById("authUserEmail"),
+  authStatus: document.getElementById("authStatus"),
+  googleLoginBtn: document.getElementById("googleLoginBtn"),
+  logoutBtn: document.getElementById("logoutBtn"),
   appSection: document.getElementById("appSection"),
-  registerForm: document.getElementById("registerForm"),
-  loginForm: document.getElementById("loginForm"),
-  registerUsername: document.getElementById("registerUsername"),
-  registerPassword: document.getElementById("registerPassword"),
-  loginUsername: document.getElementById("loginUsername"),
-  loginPassword: document.getElementById("loginPassword"),
   welcomeText: document.getElementById("welcomeText"),
   statusText: document.getElementById("statusText"),
   pokemonCard: document.getElementById("pokemonCard"),
@@ -55,7 +64,6 @@ const el = {
   rerollInfo: document.getElementById("rerollInfo"),
   uploadForm: document.getElementById("uploadForm"),
   drawingFile: document.getElementById("drawingFile"),
-  logoutBtn: document.getElementById("logoutBtn"),
   gallery: document.getElementById("gallery"),
   adminSection: document.getElementById("adminSection"),
   adminList: document.getElementById("adminList"),
@@ -64,16 +72,10 @@ const el = {
 
 let currentUser = null;
 let currentPokemon = null;
-let isLoginPending = false;
-let isRegisterPending = false;
+let isAuthActionPending = false;
 
-function normalizeUsername(value) {
-  return value.trim().toLowerCase();
-}
-
-function setFormBusy(form, busy) {
-  const submitBtn = form?.querySelector('button[type="submit"]');
-  if (submitBtn) submitBtn.disabled = busy;
+function normalizeEmail(value) {
+  return (value || "").trim().toLowerCase();
 }
 
 function logFirebaseError(context, err) {
@@ -84,21 +86,27 @@ function logFirebaseError(context, err) {
   });
 }
 
-function uid() {
-  return `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
-async function sha256(text) {
-  const bytes = new TextEncoder().encode(text);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 function showToast(message, isError = false) {
   el.toast.textContent = message;
   el.toast.style.borderLeftColor = isError ? "#ff4d6d" : "#3ddc97";
   el.toast.classList.remove("hidden");
-  setTimeout(() => el.toast.classList.add("hidden"), 3000);
+  setTimeout(() => el.toast.classList.add("hidden"), 3200);
+}
+
+function setAuthBusy(busy) {
+  el.googleLoginBtn.disabled = busy;
+  el.logoutBtn.disabled = busy;
+}
+
+function isWhitelistedAdmin(authUser) {
+  const email = normalizeEmail(authUser?.email);
+  return ADMIN_UIDS.includes(authUser?.uid) || (email && ADMIN_EMAILS.includes(email));
+}
+
+function getDisplayNameFromAuth(authUser) {
+  if (authUser?.displayName?.trim()) return authUser.displayName.trim();
+  const email = authUser?.email || "";
+  return email.includes("@") ? email.split("@")[0] : "Utilisateur";
 }
 
 async function ensurePokemonPool() {
@@ -112,81 +120,65 @@ async function ensurePokemonPool() {
   await set(ref(db, "pokemon"), payload);
 }
 
-function setSession(userId) {
-  localStorage.setItem("pk_session", userId);
-}
-function clearSession() {
-  localStorage.removeItem("pk_session");
-}
+async function syncCurrentUserFromAuth(authUser) {
+  const userRef = ref(db, `users/${authUser.uid}`);
+  const snap = await get(userRef);
+  const existing = snap.exists() ? snap.val() : {};
 
-async function fetchUserById(userId) {
-  const snap = await get(ref(db, `users/${userId}`));
-  return snap.exists() ? { id: userId, ...snap.val() } : null;
-}
+  const email = normalizeEmail(authUser.email);
+  const adminByWhitelist = isWhitelistedAdmin(authUser);
+  const role = adminByWhitelist || existing.role === "admin" ? "admin" : "user";
 
-async function fetchUserByUsername(username) {
-  const normalized = normalizeUsername(username);
-  if (!normalized) throw new Error("Pseudo requis.");
-
-  const q = query(ref(db, "users"), orderByChild("usernameNorm"), equalTo(normalized));
-  const snap = await get(q);
-  if (!snap.exists()) return null;
-  const [id, data] = Object.entries(snap.val())[0];
-  return { id, ...data };
-}
-
-async function registerUser(username, password) {
-  const trimmed = username.trim();
-  if (trimmed.length < 3) throw new Error("Pseudo trop court.");
-
-  const id = uid();
-  const usernameNorm = normalizeUsername(trimmed);
-  const indexRef = ref(db, `usernameIndex/${usernameNorm}`);
-
-  const tx = await runTransaction(indexRef, (current) => {
-    if (current) return;
-    return id;
-  });
-  if (!tx.committed) throw new Error("Ce pseudo est déjà utilisé.");
-
-  const passwordHash = await sha256(password);
-  const isAdmin = trimmed === "JOYKIX";
-  const role = isAdmin ? "admin" : "user";
-  await set(ref(db, `users/${id}`), {
-    username: trimmed,
-    usernameNorm,
-    passwordHash,
+  const merged = {
+    displayName: getDisplayNameFromAuth(authUser),
+    email,
+    emailNorm: email,
+    photoURL: authUser.photoURL || null,
+    provider: "google",
     role,
-    isAdmin,
-    rerollsUsed: 0,
-    pokemonId: null,
-    status: "idle",
-    createdAt: Date.now()
-  });
-  return fetchUserById(id);
-}
+    isAdmin: role === "admin",
+    rerollsUsed: existing.rerollsUsed || 0,
+    pokemonId: existing.pokemonId || null,
+    status: existing.status || "idle",
+    createdAt: existing.createdAt || Date.now(),
+    updatedAt: Date.now()
+  };
 
-async function loginUser(username, password) {
-  const usernameNorm = normalizeUsername(username || "");
-  if (!usernameNorm) throw new Error("Le pseudo ne peut pas être vide.");
-
-  const user = await fetchUserByUsername(usernameNorm);
-  if (!user) throw new Error("Utilisateur introuvable.");
-  const hash = await sha256(password);
-  if (hash !== user.passwordHash) throw new Error("Mot de passe incorrect.");
-
-  const role = user.role || (user.isAdmin ? "admin" : "user");
-  return { ...user, role, isAdmin: role === "admin" };
+  await update(userRef, merged);
+  currentUser = { id: authUser.uid, ...merged };
 }
 
 function renderAuthState() {
   const logged = Boolean(currentUser);
-  el.authSection.classList.toggle("hidden", logged);
+  el.authLoggedOut.classList.toggle("hidden", logged);
+  el.authLoggedIn.classList.toggle("hidden", !logged);
   el.appSection.classList.toggle("hidden", !logged);
-  if (!logged) return;
 
-  el.welcomeText.textContent = `Bienvenue, ${currentUser.username}`;
-  const roleLabel = currentUser.role === "admin" ? "Admin" : "Utilisateur";
+  if (!logged) {
+    el.authStatus.textContent = "Non connecté.";
+    el.authUserPhoto.classList.add("hidden");
+    el.authUserPhoto.removeAttribute("src");
+    el.authUserName.textContent = "Compte connecté";
+    el.authUserEmail.textContent = "";
+    el.welcomeText.textContent = "Bienvenue";
+    el.statusText.textContent = "";
+    el.adminSection.classList.add("hidden");
+    el.rerollInfo.textContent = "";
+    return;
+  }
+
+  el.authUserName.textContent = currentUser.displayName;
+  el.authUserEmail.textContent = currentUser.email || "";
+  if (currentUser.photoURL) {
+    el.authUserPhoto.src = currentUser.photoURL;
+    el.authUserPhoto.classList.remove("hidden");
+  } else {
+    el.authUserPhoto.classList.add("hidden");
+  }
+
+  const roleLabel = currentUser.role === "admin" ? "Administrateur" : "Utilisateur";
+  el.authStatus.textContent = `Connecté via Google (${roleLabel}).`;
+  el.welcomeText.textContent = `Bienvenue, ${currentUser.displayName}`;
   el.statusText.textContent = `Rôle: ${roleLabel}`;
   el.adminSection.classList.toggle("hidden", !currentUser.isAdmin);
   renderMyPokemon();
@@ -234,7 +226,7 @@ async function pickAndAssignPokemon(user, oldPokemonId = null) {
   if (!available.length) throw new Error("Plus aucun Pokémon disponible.");
 
   let selected = null;
-  for (let i = 0; i < 20 && !selected; i++) {
+  for (let i = 0; i < 20 && !selected; i += 1) {
     const candidate = available[Math.floor(Math.random() * available.length)];
     const tx = await runTransaction(ref(db, `pokemon/${candidate.id}`), (p) => {
       if (!p || p.status !== "available") return;
@@ -348,7 +340,7 @@ async function adminSetAvailable(pokemon, withDelete = false) {
     try {
       const path = storageRefFromUrl(pokemon.imageUrl);
       if (path) await deleteObject(storageRef(storage, path));
-    } catch (_) {
+    } catch {
       // ignore storage cleanup errors
     }
   }
@@ -380,7 +372,7 @@ function bindAdmin() {
       <div class="admin-row">
         <div>
           <strong>#${String(p.id).padStart(3, "0")} ${p.name}</strong>
-          <div class="small">Statut: ${p.status} ${p.userId ? `· User: ${p.userId}` : ""}</div>
+          <div class="small">Statut: ${p.status} ${p.userId ? `· User UID: ${p.userId}` : ""}</div>
         </div>
         <div class="admin-actions">
           ${p.status === "completed" ? `<button data-action="delete-drawing" data-id="${p.id}">Supprimer dessin</button>` : ""}
@@ -402,7 +394,7 @@ function bindAdmin() {
       const pokemon = snap.val();
       if (action === "delete-drawing") await adminSetAvailable(pokemon, true);
       if (action === "reset-inprogress") await adminSetAvailable(pokemon, false);
-      if (action === "force-available") await adminSetAvailable(pokemon, action === "delete-drawing");
+      if (action === "force-available") await adminSetAvailable(pokemon, false);
       await syncCurrentUser();
       await syncCurrentPokemon();
     } catch (err) {
@@ -413,60 +405,48 @@ function bindAdmin() {
 
 async function syncCurrentUser() {
   if (!currentUser?.id) return;
-  const fresh = await fetchUserById(currentUser.id);
-  if (!fresh) {
-    clearSession();
+  const snap = await get(ref(db, `users/${currentUser.id}`));
+  if (!snap.exists()) {
     currentUser = null;
   } else {
-    const role = fresh.role || (fresh.isAdmin ? "admin" : "user");
-    currentUser = { ...fresh, role, isAdmin: role === "admin" };
+    currentUser = { id: currentUser.id, ...snap.val() };
   }
   renderAuthState();
 }
 
-el.registerForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  if (isRegisterPending) return;
-  isRegisterPending = true;
-  setFormBusy(el.registerForm, true);
+async function loginWithGoogle() {
+  if (isAuthActionPending) return;
+  isAuthActionPending = true;
+  setAuthBusy(true);
   try {
-    const user = await registerUser(el.registerUsername.value, el.registerPassword.value);
-    currentUser = user;
-    setSession(user.id);
-    renderAuthState();
-    await syncCurrentPokemon();
-    showToast("Compte créé et connecté.");
-    el.registerForm.reset();
+    await signInWithPopup(auth, googleProvider);
   } catch (err) {
-    logFirebaseError("register", err);
-    showToast(err.message || "Erreur à l'inscription.", true);
+    logFirebaseError("google-login", err);
+    showToast(err.message || "Connexion Google impossible.", true);
   } finally {
-    isRegisterPending = false;
-    setFormBusy(el.registerForm, false);
+    isAuthActionPending = false;
+    setAuthBusy(false);
   }
-});
+}
 
-el.loginForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  if (isLoginPending) return;
-  isLoginPending = true;
-  setFormBusy(el.loginForm, true);
+async function logout() {
+  if (isAuthActionPending) return;
+  isAuthActionPending = true;
+  setAuthBusy(true);
   try {
-    const user = await loginUser(el.loginUsername.value, el.loginPassword.value);
-    currentUser = user;
-    setSession(user.id);
-    renderAuthState();
-    await syncCurrentPokemon();
-    showToast("Connexion réussie.");
-    el.loginForm.reset();
+    await signOut(auth);
+    showToast("Déconnecté.");
   } catch (err) {
-    logFirebaseError("login", err);
-    showToast(err.message || "Erreur de connexion.", true);
+    logFirebaseError("logout", err);
+    showToast(err.message || "Déconnexion impossible.", true);
   } finally {
-    isLoginPending = false;
-    setFormBusy(el.loginForm, false);
+    isAuthActionPending = false;
+    setAuthBusy(false);
   }
-});
+}
+
+el.googleLoginBtn.addEventListener("click", loginWithGoogle);
+el.logoutBtn.addEventListener("click", logout);
 
 el.assignBtn.addEventListener("click", async () => {
   try {
@@ -496,31 +476,28 @@ el.uploadForm.addEventListener("submit", async (e) => {
   }
 });
 
-el.logoutBtn.addEventListener("click", () => {
-  clearSession();
-  currentUser = null;
-  currentPokemon = null;
-  renderAuthState();
-  showToast("Déconnecté.");
-});
-
 async function boot() {
   await ensurePokemonPool();
   bindGallery();
   bindAdmin();
 
-  const sessionUserId = localStorage.getItem("pk_session");
-  if (sessionUserId) {
-    currentUser = await fetchUserById(sessionUserId);
-    if (!currentUser) {
-      clearSession();
-    } else {
-      currentUser.role = currentUser.role || (currentUser.isAdmin ? "admin" : "user");
-      currentUser.isAdmin = currentUser.role === "admin";
+  onAuthStateChanged(auth, async (authUser) => {
+    try {
+      if (!authUser) {
+        currentUser = null;
+        currentPokemon = null;
+        renderAuthState();
+        return;
+      }
+
+      await syncCurrentUserFromAuth(authUser);
+      renderAuthState();
+      await syncCurrentPokemon();
+    } catch (err) {
+      logFirebaseError("auth-state", err);
+      showToast("Impossible de synchroniser le compte connecté.", true);
     }
-  }
-  renderAuthState();
-  await syncCurrentPokemon();
+  });
 }
 
 boot().catch((err) => {
