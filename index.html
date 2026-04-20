@@ -3,82 +3,128 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gooningmon</title>
+    <title>Gooningmon · SPA</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header class="topbar">
-      <h1>Gooningmon</h1>
-      <p>Adopte un Pokémon, dessine-le, partage-le ✨</p>
+    <div class="bg-decor" aria-hidden="true"></div>
+    <header class="topbar shell">
+      <div>
+        <h1>Gooningmon</h1>
+        <p>Adopte un Pokémon, dessine-le et expose ta collection.</p>
+      </div>
+      <nav class="nav-tabs" aria-label="Navigation principale">
+        <button class="nav-tab" data-route="/" type="button">Accueil</button>
+        <button class="nav-tab" data-route="/galerie" type="button">Galerie</button>
+        <button class="nav-tab" data-route="/fresque" type="button">Fresque</button>
+      </nav>
     </header>
 
-    <main class="container">
-      <section id="authSection" class="card auth-card">
-        <h2>Connexion</h2>
-        <p class="small">Connecte-toi avec ton compte Google pour participer au défi.</p>
+    <main class="container shell page-transition">
+      <section id="view-home" class="route-view">
+        <div class="grid-home">
+          <section id="authSection" class="card auth-card">
+            <h2>Connexion</h2>
+            <p class="small">Connecte-toi avec ton compte Google pour participer au défi.</p>
 
-        <div id="authLoggedOut" class="auth-state">
-          <button id="googleLoginBtn" class="google-btn" type="button">Se connecter avec Google</button>
-        </div>
-
-        <div id="authLoggedIn" class="auth-state hidden">
-          <div class="auth-user">
-            <img id="authUserPhoto" class="auth-avatar hidden" alt="Avatar du compte" />
-            <div>
-              <strong id="authUserName">Compte connecté</strong>
-              <p id="authUserEmail" class="small"></p>
+            <div id="authLoggedOut" class="auth-state">
+              <button id="googleLoginBtn" class="google-btn" type="button">Se connecter avec Google</button>
             </div>
-          </div>
-          <form id="nicknameForm" class="nickname-form">
-            <label for="nicknameInput" class="small">Pseudo public</label>
-            <div class="nickname-row">
-              <input id="nicknameInput" type="text" maxlength="30" placeholder="Ton pseudo" required />
-              <button id="nicknameBtn" type="submit" class="secondary">Changer</button>
-            </div>
-          </form>
-          <button id="logoutBtn" class="ghost" type="button">Se déconnecter</button>
-        </div>
 
-        <p id="authStatus" class="small"></p>
+            <div id="authLoggedIn" class="auth-state hidden">
+              <div class="auth-user">
+                <img id="authUserPhoto" class="auth-avatar hidden" alt="Avatar du compte" />
+                <div>
+                  <strong id="authUserName">Compte connecté</strong>
+                  <p id="authUserEmail" class="small"></p>
+                </div>
+              </div>
+              <form id="nicknameForm" class="nickname-form">
+                <label for="nicknameInput" class="small">Pseudo public</label>
+                <div class="nickname-row">
+                  <input id="nicknameInput" type="text" maxlength="30" placeholder="Ton pseudo" required />
+                  <button id="nicknameBtn" type="submit" class="secondary">Changer</button>
+                </div>
+              </form>
+              <button id="logoutBtn" class="ghost" type="button">Se déconnecter</button>
+            </div>
+
+            <p id="authStatus" class="small"></p>
+          </section>
+
+          <section id="appSection" class="hidden stack">
+            <div class="card hero-card">
+              <h2 id="welcomeText">Bienvenue</h2>
+              <p id="statusText"></p>
+            </div>
+
+            <div class="grid-2">
+              <section class="card">
+                <h2>Mon Pokémon</h2>
+                <div id="pokemonCard" class="pokemon-card muted">Aucun Pokémon attribué.</div>
+                <div class="action-row">
+                  <button id="assignBtn" type="button">Obtenir un Pokémon aléatoire</button>
+                  <button id="rerollBtn" class="secondary" type="button">Reroll</button>
+                  <button id="restartBtn" class="ghost hidden" type="button">Recommencer une nouvelle aventure</button>
+                </div>
+                <p id="rerollInfo" class="small"></p>
+              </section>
+
+              <section class="card">
+                <h2>Upload du dessin</h2>
+                <form id="uploadForm" class="form-stack">
+                  <input id="drawingFile" type="file" accept="image/*" required />
+                  <button id="uploadBtn" type="submit">Envoyer mon dessin</button>
+                </form>
+                <p class="small">Quand le dessin est uploadé, le Pokémon passe en <strong>terminé</strong>.</p>
+              </section>
+            </div>
+
+            <section id="adminSection" class="card hidden">
+              <h2>Administration</h2>
+              <p class="small">Visible uniquement pour les comptes administrateurs autorisés.</p>
+              <div id="adminList" class="admin-list"></div>
+            </section>
+          </section>
+        </div>
       </section>
 
-      <section id="appSection" class="hidden">
-        <div class="card">
-          <h2 id="welcomeText">Bienvenue</h2>
-          <p id="statusText"></p>
-        </div>
-
-        <div class="grid-2">
-          <section class="card">
-            <h2>Mon Pokémon</h2>
-            <div id="pokemonCard" class="pokemon-card muted">Aucun Pokémon attribué.</div>
-            <div class="action-row">
-              <button id="assignBtn">Obtenir un Pokémon aléatoire</button>
-              <button id="rerollBtn" class="secondary">Reroll</button>
-            </div>
-            <p id="rerollInfo" class="small"></p>
-          </section>
-
-          <section class="card">
-            <h2>Upload du dessin</h2>
-            <form id="uploadForm" class="form-stack">
-              <input id="drawingFile" type="file" accept="image/*" required />
-              <button type="submit">Envoyer mon dessin</button>
-            </form>
-            <p class="small">Quand le dessin est uploadé, le Pokémon passe en <strong>terminé</strong>.</p>
-          </section>
-        </div>
-
-        <section id="adminSection" class="card hidden">
-          <h2>Administration</h2>
-          <p class="small">Visible uniquement pour les comptes administrateurs autorisés.</p>
-          <div id="adminList" class="admin-list"></div>
+      <section id="view-galerie" class="route-view hidden">
+        <section class="card">
+          <h2>Galerie publique</h2>
+          <p class="small">Historique des dessins terminés (le plus récent en premier).</p>
+          <div id="gallery" class="gallery"></div>
         </section>
       </section>
 
-      <section class="card">
-        <h2>Galerie publique</h2>
-        <div id="gallery" class="gallery"></div>
+      <section id="view-fresque" class="route-view hidden">
+        <section class="card fresque-card">
+          <div class="fresque-head">
+            <div>
+              <h2>Fresque</h2>
+              <p class="small">Construis une grille dynamique avec tous les dessins terminés.</p>
+            </div>
+            <button id="downloadFresqueBtn" class="secondary" type="button">Télécharger la fresque</button>
+          </div>
+
+          <form id="fresqueForm" class="fresque-controls">
+            <label>
+              Mode
+              <select id="fresqueMode">
+                <option value="auto">Automatique (équilibré)</option>
+                <option value="columns">Colonnes fixes</option>
+                <option value="rows">Lignes fixes</option>
+              </select>
+            </label>
+            <label>
+              Valeur
+              <input id="fresqueValue" type="number" min="1" value="5" />
+            </label>
+          </form>
+
+          <p id="fresqueInfo" class="small"></p>
+          <div id="fresqueGrid" class="fresque-grid"></div>
+        </section>
       </section>
     </main>
 
