@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pokédraw Gen 1</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>Pokédraw Gen 1</h1>
+      <p>Adopte un Pokémon, dessine-le, partage-le ✨</p>
+    </header>
+
+    <main class="container">
+      <section id="authSection" class="card">
+        <h2>Connexion / Inscription</h2>
+        <div class="auth-grid">
+          <div>
+            <h3>Créer un compte</h3>
+            <form id="registerForm" class="form-stack">
+              <input id="registerUsername" type="text" minlength="3" maxlength="20" placeholder="Pseudo unique" required />
+              <input id="registerPassword" type="password" minlength="6" placeholder="Mot de passe" required />
+              <button type="submit">Créer le compte</button>
+            </form>
+          </div>
+          <div>
+            <h3>Se connecter</h3>
+            <form id="loginForm" class="form-stack">
+              <input id="loginUsername" type="text" placeholder="Pseudo" required />
+              <input id="loginPassword" type="password" placeholder="Mot de passe" required />
+              <button type="submit">Connexion</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section id="appSection" class="hidden">
+        <div class="card">
+          <div class="row between">
+            <div>
+              <h2 id="welcomeText">Bienvenue</h2>
+              <p id="statusText"></p>
+            </div>
+            <button id="logoutBtn" class="ghost">Déconnexion</button>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <section class="card">
+            <h2>Mon Pokémon</h2>
+            <div id="pokemonCard" class="pokemon-card muted">
+              Aucun Pokémon attribué.
+            </div>
+            <div class="action-row">
+              <button id="assignBtn">Obtenir un Pokémon aléatoire</button>
+              <button id="rerollBtn" class="secondary">Reroll</button>
+            </div>
+            <p id="rerollInfo" class="small"></p>
+          </section>
+
+          <section class="card">
+            <h2>Upload du dessin</h2>
+            <form id="uploadForm" class="form-stack">
+              <input id="drawingFile" type="file" accept="image/*" required />
+              <button type="submit">Envoyer mon dessin</button>
+            </form>
+            <p class="small">Quand le dessin est uploadé, le Pokémon passe en <strong>terminé</strong>.</p>
+          </section>
+        </div>
+
+        <section id="adminSection" class="card hidden">
+          <h2>Administration</h2>
+          <p class="small">Visible uniquement pour <strong>JOYKIX</strong>.</p>
+          <div id="adminList" class="admin-list"></div>
+        </section>
+      </section>
+
+      <section class="card">
+        <h2>Galerie publique</h2>
+        <div id="gallery" class="gallery"></div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
