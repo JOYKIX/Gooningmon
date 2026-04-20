@@ -26,7 +26,7 @@ body {
   padding: 1rem;
   box-shadow: 0 12px 24px rgba(0, 0, 0, .2);
 }
-.auth-grid, .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .form-stack { display: grid; gap: .7rem; }
 input, button {
   padding: .75rem .9rem;
@@ -44,12 +44,39 @@ button {
 button.secondary { background: linear-gradient(120deg, #ffd166, #ff9f1c); }
 button.ghost { background: transparent; border-color: var(--soft); color: var(--text); }
 button:disabled { opacity: .45; cursor: not-allowed; }
-.row { display: flex; gap: .8rem; align-items: center; }
-.between { justify-content: space-between; }
 .action-row { display: flex; gap: .7rem; margin-top: .7rem; flex-wrap: wrap; }
 .small { font-size: .88rem; opacity: .85; }
 .hidden { display: none !important; }
 .muted { opacity: .8; }
+
+.auth-card {
+  display: grid;
+  gap: .9rem;
+}
+.auth-state {
+  border: 1px solid color-mix(in srgb, var(--soft) 75%, #fff 25%);
+  border-radius: 14px;
+  padding: .9rem;
+  background: rgba(7, 10, 21, 0.26);
+}
+.google-btn {
+  width: 100%;
+  background: linear-gradient(120deg, #ffffff, #dbe7ff);
+}
+.auth-user {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: .8rem;
+}
+.auth-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 2px solid #fff3;
+}
+
 .pokemon-card {
   min-height: 110px;
   display: grid;
@@ -106,7 +133,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   border-radius: 10px;
   padding: .75rem 1rem;
   max-width: 340px;
+  z-index: 999;
 }
 @media (max-width: 820px) {
-  .auth-grid, .grid-2 { grid-template-columns: 1fr; }
+  .grid-2 { grid-template-columns: 1fr; }
 }

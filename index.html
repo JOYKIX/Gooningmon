@@ -13,45 +13,38 @@
     </header>
 
     <main class="container">
-      <section id="authSection" class="card">
-        <h2>Connexion / Inscription</h2>
-        <div class="auth-grid">
-          <div>
-            <h3>Créer un compte</h3>
-            <form id="registerForm" class="form-stack">
-              <input id="registerUsername" type="text" minlength="3" maxlength="20" placeholder="Pseudo unique" required />
-              <input id="registerPassword" type="password" minlength="6" placeholder="Mot de passe" required />
-              <button type="submit">Créer le compte</button>
-            </form>
-          </div>
-          <div>
-            <h3>Se connecter</h3>
-            <form id="loginForm" class="form-stack">
-              <input id="loginUsername" type="text" placeholder="Pseudo" required />
-              <input id="loginPassword" type="password" placeholder="Mot de passe" required />
-              <button type="submit">Connexion</button>
-            </form>
-          </div>
+      <section id="authSection" class="card auth-card">
+        <h2>Connexion</h2>
+        <p class="small">Connecte-toi avec ton compte Google pour participer au défi.</p>
+
+        <div id="authLoggedOut" class="auth-state">
+          <button id="googleLoginBtn" class="google-btn" type="button">Se connecter avec Google</button>
         </div>
+
+        <div id="authLoggedIn" class="auth-state hidden">
+          <div class="auth-user">
+            <img id="authUserPhoto" class="auth-avatar hidden" alt="Avatar du compte" />
+            <div>
+              <strong id="authUserName">Compte connecté</strong>
+              <p id="authUserEmail" class="small"></p>
+            </div>
+          </div>
+          <button id="logoutBtn" class="ghost" type="button">Se déconnecter</button>
+        </div>
+
+        <p id="authStatus" class="small"></p>
       </section>
 
       <section id="appSection" class="hidden">
         <div class="card">
-          <div class="row between">
-            <div>
-              <h2 id="welcomeText">Bienvenue</h2>
-              <p id="statusText"></p>
-            </div>
-            <button id="logoutBtn" class="ghost">Déconnexion</button>
-          </div>
+          <h2 id="welcomeText">Bienvenue</h2>
+          <p id="statusText"></p>
         </div>
 
         <div class="grid-2">
           <section class="card">
             <h2>Mon Pokémon</h2>
-            <div id="pokemonCard" class="pokemon-card muted">
-              Aucun Pokémon attribué.
-            </div>
+            <div id="pokemonCard" class="pokemon-card muted">Aucun Pokémon attribué.</div>
             <div class="action-row">
               <button id="assignBtn">Obtenir un Pokémon aléatoire</button>
               <button id="rerollBtn" class="secondary">Reroll</button>
@@ -71,7 +64,7 @@
 
         <section id="adminSection" class="card hidden">
           <h2>Administration</h2>
-          <p class="small">Visible uniquement pour <strong>JOYKIX</strong>.</p>
+          <p class="small">Visible uniquement pour les comptes administrateurs autorisés.</p>
           <div id="adminList" class="admin-list"></div>
         </section>
       </section>
