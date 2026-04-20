@@ -64,9 +64,24 @@ const el = {
 
 let currentUser = null;
 let currentPokemon = null;
+let isLoginPending = false;
+let isRegisterPending = false;
 
 function normalizeUsername(value) {
   return value.trim().toLowerCase();
+}
+
+function setFormBusy(form, busy) {
+  const submitBtn = form?.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = busy;
+}
+
+function logFirebaseError(context, err) {
+  console.error(`[Firebase][${context}]`, {
+    code: err?.code || "unknown",
+    message: err?.message || "Unknown Firebase error",
+    raw: err
+  });
 }
 
 function uid() {
@@ -110,7 +125,10 @@ async function fetchUserById(userId) {
 }
 
 async function fetchUserByUsername(username) {
-  const q = query(ref(db, "users"), orderByChild("usernameNorm"), equalTo(normalizeUsername(username)));
+  const normalized = normalizeUsername(username);
+  if (!normalized) throw new Error("Pseudo requis.");
+
+  const q = query(ref(db, "users"), orderByChild("usernameNorm"), equalTo(normalized));
   const snap = await get(q);
   if (!snap.exists()) return null;
   const [id, data] = Object.entries(snap.val())[0];
@@ -133,10 +151,12 @@ async function registerUser(username, password) {
 
   const passwordHash = await sha256(password);
   const isAdmin = trimmed === "JOYKIX";
+  const role = isAdmin ? "admin" : "user";
   await set(ref(db, `users/${id}`), {
     username: trimmed,
     usernameNorm,
     passwordHash,
+    role,
     isAdmin,
     rerollsUsed: 0,
     pokemonId: null,
@@ -147,11 +167,16 @@ async function registerUser(username, password) {
 }
 
 async function loginUser(username, password) {
-  const user = await fetchUserByUsername(username);
-  if (!user) throw new Error("Compte introuvable.");
+  const usernameNorm = normalizeUsername(username || "");
+  if (!usernameNorm) throw new Error("Le pseudo ne peut pas être vide.");
+
+  const user = await fetchUserByUsername(usernameNorm);
+  if (!user) throw new Error("Utilisateur introuvable.");
   const hash = await sha256(password);
-  if (hash !== user.passwordHash) throw new Error("Mot de passe invalide.");
-  return user;
+  if (hash !== user.passwordHash) throw new Error("Mot de passe incorrect.");
+
+  const role = user.role || (user.isAdmin ? "admin" : "user");
+  return { ...user, role, isAdmin: role === "admin" };
 }
 
 function renderAuthState() {
@@ -161,7 +186,8 @@ function renderAuthState() {
   if (!logged) return;
 
   el.welcomeText.textContent = `Bienvenue, ${currentUser.username}`;
-  el.statusText.textContent = currentUser.isAdmin ? "Rôle: Admin" : "Rôle: Utilisateur";
+  const roleLabel = currentUser.role === "admin" ? "Admin" : "Utilisateur";
+  el.statusText.textContent = `Rôle: ${roleLabel}`;
   el.adminSection.classList.toggle("hidden", !currentUser.isAdmin);
   renderMyPokemon();
 }
@@ -392,13 +418,17 @@ async function syncCurrentUser() {
     clearSession();
     currentUser = null;
   } else {
-    currentUser = fresh;
+    const role = fresh.role || (fresh.isAdmin ? "admin" : "user");
+    currentUser = { ...fresh, role, isAdmin: role === "admin" };
   }
   renderAuthState();
 }
 
 el.registerForm.addEventListener("submit", async (e) => {
   e.preventDefault();
+  if (isRegisterPending) return;
+  isRegisterPending = true;
+  setFormBusy(el.registerForm, true);
   try {
     const user = await registerUser(el.registerUsername.value, el.registerPassword.value);
     currentUser = user;
@@ -408,12 +438,19 @@ el.registerForm.addEventListener("submit", async (e) => {
     showToast("Compte créé et connecté.");
     el.registerForm.reset();
   } catch (err) {
+    logFirebaseError("register", err);
     showToast(err.message || "Erreur à l'inscription.", true);
+  } finally {
+    isRegisterPending = false;
+    setFormBusy(el.registerForm, false);
   }
 });
 
 el.loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
+  if (isLoginPending) return;
+  isLoginPending = true;
+  setFormBusy(el.loginForm, true);
   try {
     const user = await loginUser(el.loginUsername.value, el.loginPassword.value);
     currentUser = user;
@@ -423,7 +460,11 @@ el.loginForm.addEventListener("submit", async (e) => {
     showToast("Connexion réussie.");
     el.loginForm.reset();
   } catch (err) {
+    logFirebaseError("login", err);
     showToast(err.message || "Erreur de connexion.", true);
+  } finally {
+    isLoginPending = false;
+    setFormBusy(el.loginForm, false);
   }
 });
 
@@ -471,10 +512,18 @@ async function boot() {
   const sessionUserId = localStorage.getItem("pk_session");
   if (sessionUserId) {
     currentUser = await fetchUserById(sessionUserId);
-    if (!currentUser) clearSession();
+    if (!currentUser) {
+      clearSession();
+    } else {
+      currentUser.role = currentUser.role || (currentUser.isAdmin ? "admin" : "user");
+      currentUser.isAdmin = currentUser.role === "admin";
+    }
   }
   renderAuthState();
   await syncCurrentPokemon();
 }
 
-boot().catch((err) => showToast(err.message || "Erreur d'initialisation.", true));
+boot().catch((err) => {
+  logFirebaseError("boot", err);
+  showToast(err.message || "Erreur d'initialisation.", true);
+});
