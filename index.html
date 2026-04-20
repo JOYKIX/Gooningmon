@@ -80,6 +80,23 @@
 
             <section id="adminSection" class="card hidden">
               <h2>Administration</h2>
+              <div class="admin-tools">
+                <button id="downloadGenerationZipBtn" type="button">ZIP</button>
+                <div class="admin-generation-row">
+                  <select id="generationSelect">
+                    <option value="gen1">Gen 1</option>
+                    <option value="gen2">Gen 2</option>
+                    <option value="gen3">Gen 3</option>
+                    <option value="gen4">Gen 4</option>
+                    <option value="gen5">Gen 5</option>
+                    <option value="gen6">Gen 6</option>
+                    <option value="gen7">Gen 7</option>
+                    <option value="gen8">Gen 8</option>
+                    <option value="gen9">Gen 9</option>
+                  </select>
+                  <button id="changeGenerationBtn" class="secondary" type="button">Changer</button>
+                </div>
+              </div>
               <div id="adminList" class="admin-list"></div>
             </section>
           </section>
@@ -116,6 +133,11 @@
               <input id="fresqueValue" type="number" min="1" value="5" />
             </label>
           </form>
+          <div id="fresqueInfoToggles" class="fresque-info-toggles">
+            <label><input id="fresqueShowNumber" type="checkbox" checked />Numéro</label>
+            <label><input id="fresqueShowName" type="checkbox" checked />Nom</label>
+            <label><input id="fresqueShowPseudo" type="checkbox" checked />Pseudo</label>
+          </div>
 
           <p id="fresqueInfo" class="small"></p>
           <div id="fresqueGrid" class="fresque-grid"></div>
