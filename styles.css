@@ -378,6 +378,23 @@ button.ghost:hover {
   gap: 0.85rem;
 }
 
+.gallery-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.gallery-head-main {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.gallery-progress {
+  font-weight: 700;
+}
+
 .gallery-item,
 .fresque-cell {
   border: 1px solid #383838;
@@ -411,6 +428,23 @@ button.ghost:hover {
 .gallery-meta,
 .fresque-meta {
   padding: 0.65rem 0.72rem;
+}
+
+.gallery-meta {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.gallery-title,
+.gallery-author {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gallery-download-btn {
+  width: 100%;
 }
 
 .fresque-meta {
@@ -577,5 +611,9 @@ button.ghost:hover {
   .nav-tab {
     min-width: 0;
     width: 100%;
+  }
+
+  .gallery-head {
+    align-items: stretch;
   }
 }

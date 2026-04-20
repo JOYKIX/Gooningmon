@@ -94,6 +94,7 @@ const el = {
   drawingFile: document.getElementById("drawingFile"),
   uploadFileInfo: document.getElementById("uploadFileInfo"),
   uploadState: document.getElementById("uploadState"),
+  galleryProgress: document.getElementById("galleryProgress"),
   gallery: document.getElementById("gallery"),
   fresqueGrid: document.getElementById("fresqueGrid"),
   fresqueInfo: document.getElementById("fresqueInfo"),
@@ -423,11 +424,54 @@ function renderMyPokemon() {
 
 function getCompletedPokemon(allPokemon) {
   return Object.values(allPokemon || {})
-    .filter((p) => p.status === "completed" && p.imageUrl)
+    .filter((pokemon) => {
+      const imageUrl = typeof pokemon?.imageUrl === "string" ? pokemon.imageUrl.trim() : "";
+      const hasValidImage =
+        imageUrl.length > 0
+        && /^(data:image\/|https?:\/\/|blob:)/i.test(imageUrl);
+      const isCompleted = pokemon?.status === "completed" || Boolean(pokemon?.completedAt);
+      return hasValidImage && isCompleted;
+    })
     .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
 }
 
+function normalizePokemonFileNamePart(value) {
+  return normalizePokemonName(value)
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    || "pokemon";
+}
+
+function getImageExtensionFromUrl(url = "") {
+  if (/^data:image\/png/i.test(url)) return "png";
+  if (/^data:image\/jpe?g/i.test(url)) return "jpg";
+  if (/^data:image\/webp/i.test(url)) return "webp";
+  if (/^data:image\/gif/i.test(url)) return "gif";
+
+  const cleanedUrl = url.split("?")[0].split("#")[0];
+  const extension = cleanedUrl.split(".").pop()?.toLowerCase();
+  if (["png", "jpg", "jpeg", "webp", "gif"].includes(extension)) {
+    return extension === "jpeg" ? "jpg" : extension;
+  }
+  return "png";
+}
+
+function buildPokemonDownloadName(pokemon) {
+  const number = String(pokemon.id).padStart(3, "0");
+  const name = normalizePokemonFileNamePart(pokemon.name);
+  const extension = getImageExtensionFromUrl(pokemon.imageUrl);
+  return `${number}-${name}.${extension}`;
+}
+
+function renderGalleryProgress() {
+  const done = completedPokemonList.length;
+  const total = POKEMON_151.length;
+  const percent = total ? Math.round((done / total) * 100) : 0;
+  el.galleryProgress.textContent = `${done}/${total} (${percent}%)`;
+}
+
 function renderGallery() {
+  renderGalleryProgress();
   if (!completedPokemonList.length) {
     el.gallery.innerHTML = '<p class="small">Aucun dessin.</p>';
     return;
@@ -437,11 +481,52 @@ function renderGallery() {
     <article class="gallery-item">
       <img src="${p.imageUrl}" alt="Dessin de ${p.name}" loading="lazy" />
       <div class="gallery-meta">
-        <strong>#${String(p.id).padStart(3, "0")} ${p.name}</strong>
-        ${p.authorName ? `<div class="small">Par ${p.authorName}</div>` : ""}
+        <strong class="gallery-title">#${String(p.id).padStart(3, "0")} ${p.name}</strong>
+        ${p.authorName ? `<div class="small gallery-author" title="Par ${p.authorName}">Par ${p.authorName}</div>` : ""}
+        <button class="btn btn-secondary gallery-download-btn" type="button" data-id="${p.id}">
+          Télécharger
+        </button>
       </div>
     </article>
   `).join("");
+}
+
+function triggerDownloadFromBlob(blob, filename) {
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
+function triggerDirectDownloadFallback(url, filename) {
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.rel = "noopener";
+  link.target = "_blank";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+async function downloadPokemonImage(pokemonId) {
+  const pokemon = completedPokemonList.find((item) => item.id === pokemonId);
+  if (!pokemon?.imageUrl) throw new Error("Image introuvable.");
+
+  const fileName = buildPokemonDownloadName(pokemon);
+  try {
+    const response = await fetch(pokemon.imageUrl, { cache: "no-store" });
+    if (!response.ok) throw new Error("Image indisponible.");
+    const blob = await response.blob();
+    if (!blob || !blob.size) throw new Error("Image vide.");
+    triggerDownloadFromBlob(blob, fileName);
+  } catch (err) {
+    triggerDirectDownloadFallback(pokemon.imageUrl, fileName);
+  }
 }
 
 function computeFresqueLayout(total, mode, value) {
@@ -1418,6 +1503,21 @@ function bindEvents() {
     } catch (err) {
       el.uploadState.textContent = "Erreur upload.";
       showToast(err.message || "Upload impossible.", true);
+    }
+  });
+  el.gallery.addEventListener("click", async (e) => {
+    const button = e.target.closest(".gallery-download-btn");
+    if (!button) return;
+    const pokemonId = Number(button.dataset.id);
+    if (!Number.isInteger(pokemonId)) return;
+    button.disabled = true;
+    try {
+      await downloadPokemonImage(pokemonId);
+      showToast("Téléchargement lancé.");
+    } catch (err) {
+      showToast(err.message || "Téléchargement impossible.", true);
+    } finally {
+      button.disabled = false;
     }
   });
 
