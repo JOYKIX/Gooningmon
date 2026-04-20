@@ -81,7 +81,11 @@
             <section id="adminSection" class="card hidden">
               <h2>Administration</h2>
               <div class="admin-tools">
-                <button id="downloadGenerationZipBtn" type="button">ZIP</button>
+                <button id="downloadGenerationZipBtn" type="button">Télécharger ZIP</button>
+                <div class="admin-zip-import">
+                  <input id="importGenerationZipInput" type="file" accept=".zip,application/zip" class="hidden" />
+                  <button id="importGenerationZipBtn" class="secondary" type="button">Importer ZIP</button>
+                </div>
                 <form id="adminAssignForm" class="admin-assign-form">
                   <label for="adminAssignNumber">Numéro</label>
                   <input id="adminAssignNumber" type="text" inputmode="numeric" maxlength="3" />
