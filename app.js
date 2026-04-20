@@ -29,7 +29,7 @@ const firebaseConfig = {
 };
 
 const ADMIN_UIDS = [];
-const ADMIN_EMAILS = [];
+const ADMIN_EMAILS = ["duveaubenoit@gmail.com"];
 
 const APP_HOSTNAME = window.location.hostname;
 const EXPECTED_HOSTNAME = "joykix.github.io";
