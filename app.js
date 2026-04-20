@@ -17,13 +17,6 @@ import {
   runTransaction,
   onValue
 } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-database.js";
-import {
-  getStorage,
-  ref as storageRef,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject
-} from "https://www.gstatic.com/firebasejs/12.12.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBmC1_Hklc1SgvVQXyNT07TYDfVn2euRO8",
@@ -49,7 +42,6 @@ const POKEMON_151 = [
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
-const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
 
@@ -59,6 +51,9 @@ const el = {
   authUserPhoto: document.getElementById("authUserPhoto"),
   authUserName: document.getElementById("authUserName"),
   authUserEmail: document.getElementById("authUserEmail"),
+  nicknameForm: document.getElementById("nicknameForm"),
+  nicknameInput: document.getElementById("nicknameInput"),
+  nicknameBtn: document.getElementById("nicknameBtn"),
   authStatus: document.getElementById("authStatus"),
   googleLoginBtn: document.getElementById("googleLoginBtn"),
   logoutBtn: document.getElementById("logoutBtn"),
@@ -103,6 +98,7 @@ function showToast(message, isError = false) {
 function setAuthBusy(busy) {
   el.googleLoginBtn.disabled = busy;
   el.logoutBtn.disabled = busy;
+  el.nicknameBtn.disabled = busy;
 }
 
 function isWhitelistedAdmin(authUser) {
@@ -114,6 +110,10 @@ function getDisplayNameFromAuth(authUser) {
   if (authUser?.displayName?.trim()) return authUser.displayName.trim();
   const email = authUser?.email || "";
   return email.includes("@") ? email.split("@")[0] : "Utilisateur";
+}
+
+function sanitizeNickname(value) {
+  return (value || "").trim().slice(0, 30);
 }
 
 async function ensurePokemonPool() {
@@ -137,7 +137,7 @@ async function syncCurrentUserFromAuth(authUser) {
   const role = adminByWhitelist || existing.role === "admin" ? "admin" : "user";
 
   const merged = {
-    displayName: getDisplayNameFromAuth(authUser),
+    displayName: sanitizeNickname(existing.displayName) || getDisplayNameFromAuth(authUser),
     email,
     emailNorm: email,
     photoURL: authUser.photoURL || null,
@@ -177,6 +177,7 @@ function renderAuthState() {
   }
 
   el.authUserName.textContent = currentUser.displayName;
+  el.nicknameInput.value = currentUser.displayName || "";
   el.authUserEmail.textContent = currentUser.email || "";
   if (currentUser.photoURL) {
     el.authUserPhoto.src = currentUser.photoURL;
@@ -239,7 +240,15 @@ async function pickAndAssignPokemon(user, oldPokemonId = null) {
     const candidate = available[Math.floor(Math.random() * available.length)];
     const tx = await runTransaction(ref(db, `pokemon/${candidate.id}`), (p) => {
       if (!p || p.status !== "available") return;
-      return { ...p, status: "assigned", userId: user.id, assignedAt: Date.now(), completedAt: null, imageUrl: null };
+      return {
+        ...p,
+        status: "assigned",
+        userId: user.id,
+        assignedAt: Date.now(),
+        completedAt: null,
+        imageUrl: null,
+        artistName: null
+      };
     });
     if (tx.committed) selected = tx.snapshot.val();
   }
@@ -256,7 +265,8 @@ async function pickAndAssignPokemon(user, oldPokemonId = null) {
       userId: null,
       assignedAt: null,
       completedAt: null,
-      imageUrl: null
+      imageUrl: null,
+      artistName: null
     };
   }
   await update(ref(db), updates);
@@ -298,23 +308,31 @@ async function rerollPokemon() {
 
 async function uploadDrawing(file) {
   if (!currentPokemon || currentPokemon.status !== "assigned") throw new Error("Aucun Pokémon en cours.");
-  const safeType = file.type?.startsWith("image/") ? file.type.split("/")[1] : "png";
-  const fileRef = storageRef(storage, `drawings/${currentPokemon.id}_${currentUser.id}_${Date.now()}.${safeType}`);
-  await uploadBytes(fileRef, file);
-  const imageUrl = await getDownloadURL(fileRef);
+  const imageData = await fileToDataUrl(file);
 
   await update(ref(db), {
     [`pokemon/${currentPokemon.id}/status`]: "completed",
-    [`pokemon/${currentPokemon.id}/imageUrl`]: imageUrl,
+    [`pokemon/${currentPokemon.id}/imageUrl`]: imageData,
+    [`pokemon/${currentPokemon.id}/artistName`]: currentUser.displayName,
     [`pokemon/${currentPokemon.id}/completedAt`]: Date.now(),
     [`users/${currentUser.id}/status`]: "completed"
   });
 
   currentPokemon.status = "completed";
-  currentPokemon.imageUrl = imageUrl;
+  currentPokemon.imageUrl = imageData;
+  currentPokemon.artistName = currentUser.displayName;
   currentUser.status = "completed";
   renderMyPokemon();
   showToast("Dessin uploadé avec succès !");
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Impossible de lire le fichier image."));
+    reader.readAsDataURL(file);
+  });
 }
 
 function bindGallery() {
@@ -330,33 +348,20 @@ function bindGallery() {
         <img src="${p.imageUrl}" alt="Dessin de ${p.name}" loading="lazy" />
         <div class="gallery-meta">
           <strong>#${String(p.id).padStart(3, "0")} ${p.name}</strong>
+          ${p.artistName ? `<div class="small">Par ${p.artistName}</div>` : ""}
         </div>
       </article>
     `).join("");
   });
 }
 
-function storageRefFromUrl(url) {
-  const marker = "/o/";
-  const i = url.indexOf(marker);
-  if (i === -1) return null;
-  const encoded = url.slice(i + marker.length).split("?")[0];
-  return decodeURIComponent(encoded);
-}
-
 async function adminSetAvailable(pokemon, withDelete = false) {
-  if (withDelete && pokemon.imageUrl) {
-    try {
-      const path = storageRefFromUrl(pokemon.imageUrl);
-      if (path) await deleteObject(storageRef(storage, path));
-    } catch {
-      // ignore storage cleanup errors
-    }
-  }
+  void withDelete;
 
   const updates = {
     [`pokemon/${pokemon.id}/status`]: "available",
     [`pokemon/${pokemon.id}/imageUrl`]: null,
+    [`pokemon/${pokemon.id}/artistName`]: null,
     [`pokemon/${pokemon.id}/userId`]: null,
     [`pokemon/${pokemon.id}/assignedAt`]: null,
     [`pokemon/${pokemon.id}/completedAt`]: null
@@ -478,8 +483,29 @@ async function logout() {
   }
 }
 
+async function updateNickname(newNickname) {
+  if (!currentUser?.id) throw new Error("Connecte-toi d'abord.");
+  const nickname = sanitizeNickname(newNickname);
+  if (!nickname) throw new Error("Le pseudo ne peut pas être vide.");
+  await update(ref(db, `users/${currentUser.id}`), {
+    displayName: nickname,
+    updatedAt: Date.now()
+  });
+  currentUser.displayName = nickname;
+  renderAuthState();
+  showToast("Pseudo mis à jour.");
+}
+
 el.googleLoginBtn.addEventListener("click", loginWithGoogle);
 el.logoutBtn.addEventListener("click", logout);
+el.nicknameForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    await updateNickname(el.nicknameInput.value);
+  } catch (err) {
+    showToast(err.message || "Impossible de mettre à jour le pseudo.", true);
+  }
+});
 
 el.assignBtn.addEventListener("click", async () => {
   try {

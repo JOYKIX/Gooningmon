@@ -1,9 +1,9 @@
-# Pokédraw Gen 1
+# Gooningmon
 
 Application web simple (HTML/CSS/JS) avec Firebase pour:
 - Connexion Google.
 - Attribution aléatoire d'un Pokémon de la Gen 1.
-- Upload de dessin.
+- Upload de dessin (stocké en base Realtime Database).
 - Galerie publique.
 
 ## Configuration Firebase (important pour GitHub Pages)
