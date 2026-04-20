@@ -127,7 +127,6 @@ let activeGeneration = "gen1";
 let unbindPokemonFeed = null;
 let unbindAdminFeed = null;
 let isAdminListClickBound = false;
-const fresqueDisplayOptions = { number: true, name: true, pseudo: true };
 
 function normalizeUserPokemonEntry(entry, fallbackId = null) {
   if (!entry) return null;
@@ -460,13 +459,21 @@ function computeFresqueLayout(total, mode, value) {
   return { cols, rows: Math.ceil(total / cols) };
 }
 
-function getFresqueMetaText(pokemon) {
+function getCurrentFresqueDisplayOptions() {
+  return {
+    number: el.fresqueShowNumber.checked,
+    name: el.fresqueShowName.checked,
+    pseudo: el.fresqueShowPseudo.checked
+  };
+}
+
+function getFresqueMetaTextWithOptions(pokemon, displayOptions) {
   const number = `#${String(pokemon.id).padStart(3, "0")}`;
   const parts = [];
-  if (fresqueDisplayOptions.number) parts.push(number);
-  if (fresqueDisplayOptions.name) parts.push(pokemon.name);
+  if (displayOptions.number) parts.push(number);
+  if (displayOptions.name) parts.push(pokemon.name);
   const left = parts.join(" ");
-  if (fresqueDisplayOptions.pseudo && pokemon.authorName) {
+  if (displayOptions.pseudo && pokemon.authorName) {
     return left ? `${left} — ${pokemon.authorName}` : pokemon.authorName;
   }
   return left;
@@ -483,6 +490,7 @@ function renderFresque() {
   const mode = el.fresqueMode.value;
   const value = Number(el.fresqueValue.value || 1);
   const fresquePokemonList = [...completedPokemonList].sort((a, b) => a.id - b.id);
+  const displayOptions = getCurrentFresqueDisplayOptions();
   el.fresqueValue.disabled = mode === "auto";
 
   const { cols, rows } = computeFresqueLayout(fresquePokemonList.length, mode, value);
@@ -491,7 +499,7 @@ function renderFresque() {
   el.fresqueGrid.innerHTML = fresquePokemonList.map((p) => `
     <article class="fresque-cell">
       <img src="${p.imageUrl}" alt="${p.name}" loading="lazy" />
-      <div class="fresque-meta">${getFresqueMetaText(p)}</div>
+      <div class="fresque-meta">${getFresqueMetaTextWithOptions(p, displayOptions)}</div>
     </article>
   `).join("");
   el.downloadFresqueBtn.disabled = false;
@@ -1041,25 +1049,53 @@ async function downloadFresqueImage() {
 
   const mode = el.fresqueMode.value;
   const value = Number(el.fresqueValue.value || 1);
+  const displayOptions = getCurrentFresqueDisplayOptions();
   const fresquePokemonList = [...completedPokemonList].sort((a, b) => a.id - b.id);
   const { cols } = computeFresqueLayout(fresquePokemonList.length, mode, value);
 
-  const cell = 220;
+  const imageSize = 220;
+  const showMeta = displayOptions.number || displayOptions.name || displayOptions.pseudo;
+  const metaGap = showMeta ? 8 : 0;
+  const metaHeight = showMeta ? 20 : 0;
+  const cellHeight = imageSize + metaGap + metaHeight;
   const rows = Math.ceil(fresquePokemonList.length / cols);
   const canvas = document.createElement("canvas");
-  canvas.width = cols * cell;
-  canvas.height = rows * cell;
+  canvas.width = cols * imageSize;
+  canvas.height = rows * cellHeight;
   const ctx = canvas.getContext("2d");
 
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const truncateCanvasText = (text, maxWidth) => {
+    if (!text || ctx.measureText(text).width <= maxWidth) return text;
+    let trimmed = text;
+    while (trimmed.length > 0 && ctx.measureText(`${trimmed}…`).width > maxWidth) {
+      trimmed = trimmed.slice(0, -1);
+    }
+    return trimmed ? `${trimmed}…` : "";
+  };
 
   const tasks = fresquePokemonList.map((pokemon, index) => new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
       const col = index % cols;
       const row = Math.floor(index / cols);
-      ctx.drawImage(img, col * cell, row * cell, cell, cell);
+      const x = col * imageSize;
+      const y = row * cellHeight;
+      ctx.drawImage(img, x, y, imageSize, imageSize);
+
+      if (showMeta) {
+        const metaText = getFresqueMetaTextWithOptions(pokemon, displayOptions);
+        if (metaText) {
+          ctx.fillStyle = "#4f4f4f";
+          ctx.font = "12px Inter, Arial, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          const safeText = truncateCanvasText(metaText, imageSize - 14);
+          ctx.fillText(safeText, x + (imageSize / 2), y + imageSize + metaGap + (metaHeight / 2));
+        }
+      }
       resolve();
     };
     img.onerror = () => resolve();
@@ -1387,15 +1423,12 @@ function bindEvents() {
 
   el.fresqueForm.addEventListener("input", renderFresque);
   el.fresqueShowNumber.addEventListener("change", () => {
-    fresqueDisplayOptions.number = el.fresqueShowNumber.checked;
     renderFresque();
   });
   el.fresqueShowName.addEventListener("change", () => {
-    fresqueDisplayOptions.name = el.fresqueShowName.checked;
     renderFresque();
   });
   el.fresqueShowPseudo.addEventListener("change", () => {
-    fresqueDisplayOptions.pseudo = el.fresqueShowPseudo.checked;
     renderFresque();
   });
   el.downloadFresqueBtn.addEventListener("click", async () => {
