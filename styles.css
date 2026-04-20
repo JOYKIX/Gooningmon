@@ -216,6 +216,16 @@ button.ghost { background: rgba(255, 255, 255, 0.05); color: var(--text); border
   gap: .7rem;
   margin-bottom: .9rem;
 }
+.admin-assign-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: .5rem;
+  align-items: end;
+}
+.admin-assign-form label {
+  font-size: .85rem;
+  color: var(--muted);
+}
 .admin-generation-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -250,4 +260,5 @@ button.ghost { background: rgba(255, 255, 255, 0.05); color: var(--text); border
   .grid-2 { grid-template-columns: 1fr; }
   .fresque-controls { grid-template-columns: 1fr; }
   .nickname-row { flex-direction: column; }
+  .admin-assign-form { grid-template-columns: 1fr; }
 }

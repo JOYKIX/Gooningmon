@@ -82,6 +82,15 @@
               <h2>Administration</h2>
               <div class="admin-tools">
                 <button id="downloadGenerationZipBtn" type="button">ZIP</button>
+                <form id="adminAssignForm" class="admin-assign-form">
+                  <label for="adminAssignNumber">Numéro</label>
+                  <input id="adminAssignNumber" type="text" inputmode="numeric" maxlength="3" />
+                  <label for="adminAssignName">Nom</label>
+                  <input id="adminAssignName" type="text" maxlength="30" />
+                  <label for="adminAssignPseudo">Pseudo</label>
+                  <input id="adminAssignPseudo" type="text" maxlength="30" />
+                  <button id="adminAssignBtn" type="submit">Attribuer</button>
+                </form>
                 <div class="admin-generation-row">
                   <select id="generationSelect">
                     <option value="gen1">Gen 1</option>
