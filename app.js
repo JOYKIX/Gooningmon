@@ -127,6 +127,58 @@ let unbindAdminFeed = null;
 let isAdminListClickBound = false;
 const fresqueDisplayOptions = { number: true, name: true, pseudo: true };
 
+function normalizeUserPokemonEntry(entry, fallbackId = null) {
+  if (!entry) return null;
+  const pokemonId = Number(entry.pokemonId ?? fallbackId);
+  if (!Number.isInteger(pokemonId) || pokemonId < 1) return null;
+  const status = entry.status === "completed" ? "completed" : "active";
+  return {
+    pokemonId,
+    status,
+    image: entry.image || null,
+    authorName: sanitizeNickname(entry.authorName) || null,
+    assignedAt: entry.assignedAt || null,
+    completedAt: entry.completedAt || null,
+    updatedAt: entry.updatedAt || null
+  };
+}
+
+function normalizeUserPokemonMap(value) {
+  if (!value || typeof value !== "object") return {};
+  const normalized = {};
+  Object.entries(value).forEach(([key, entry]) => {
+    const parsed = normalizeUserPokemonEntry(entry, key);
+    if (parsed) normalized[parsed.pokemonId] = parsed;
+  });
+  return normalized;
+}
+
+function ensureLegacyPokemonMap(existing) {
+  const normalized = normalizeUserPokemonMap(existing?.pokemons);
+  if (Object.keys(normalized).length) return normalized;
+
+  const legacyPokemonId = Number(existing?.pokemonId);
+  if (!Number.isInteger(legacyPokemonId) || legacyPokemonId < 1) return normalized;
+  const legacyStatus = existing?.status === "completed" ? "completed" : "active";
+  normalized[legacyPokemonId] = {
+    pokemonId: legacyPokemonId,
+    status: legacyStatus,
+    image: null,
+    authorName: sanitizeNickname(existing?.displayName) || null,
+    assignedAt: null,
+    completedAt: null,
+    updatedAt: Date.now()
+  };
+  return normalized;
+}
+
+function getActivePokemonEntry(user = currentUser) {
+  const pokemons = normalizeUserPokemonMap(user?.pokemons);
+  return Object.values(pokemons)
+    .filter((entry) => entry.status === "active")
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0] || null;
+}
+
 function normalizeEmail(value) {
   return (value || "").trim().toLowerCase();
 }
@@ -242,6 +294,8 @@ async function syncCurrentUserFromAuth(authUser) {
   const email = normalizeEmail(authUser.email);
   const adminByWhitelist = isWhitelistedAdmin(authUser);
   const role = adminByWhitelist || existing.role === "admin" ? "admin" : "user";
+  const pokemons = ensureLegacyPokemonMap(existing);
+  const activeEntry = Object.values(pokemons).find((entry) => entry.status === "active") || null;
 
   const merged = {
     displayName: sanitizeNickname(existing.displayName),
@@ -252,8 +306,10 @@ async function syncCurrentUserFromAuth(authUser) {
     role,
     isAdmin: role === "admin",
     rerollsUsed: existing.rerollsUsed || 0,
-    pokemonId: existing.pokemonId || null,
-    status: existing.status || "idle",
+    pokemons,
+    activePokemonId: activeEntry?.pokemonId || null,
+    pokemonId: activeEntry?.pokemonId || null,
+    status: activeEntry ? "assigned" : "idle",
     createdAt: existing.createdAt || Date.now(),
     updatedAt: Date.now()
   };
@@ -430,14 +486,16 @@ function renderFresque() {
 }
 
 async function syncCurrentPokemon() {
-  if (!currentUser?.pokemonId) {
+  const activeEntry = getActivePokemonEntry(currentUser);
+  if (!activeEntry?.pokemonId) {
     currentPokemon = null;
     renderMyPokemon();
     return;
   }
 
-  const snap = await get(ref(db, `${generationPokemonPath()}/${currentUser.pokemonId}`));
+  const snap = await get(ref(db, `${generationPokemonPath()}/${activeEntry.pokemonId}`));
   currentPokemon = snap.exists() ? snap.val() : null;
+  if (currentPokemon && activeEntry.authorName) currentPokemon.authorName = activeEntry.authorName;
   renderMyPokemon();
 }
 
@@ -476,6 +534,19 @@ async function assignPokemonToUser({ user, oldPokemonId = null, selectedPokemon 
   const selected = selectedPokemon || randomPick.selected;
   const allPokemon = randomPick?.allPokemon || null;
   const finalAuthorName = sanitizeNickname(authorName) || sanitizeNickname(user?.displayName);
+  const userPokemonMap = {
+    ...normalizeUserPokemonMap(user?.pokemons)
+  };
+
+  userPokemonMap[selected.id] = {
+    pokemonId: selected.id,
+    status: "active",
+    image: null,
+    authorName: finalAuthorName || null,
+    assignedAt: Date.now(),
+    completedAt: null,
+    updatedAt: Date.now()
+  };
 
   const updates = {
     [`${generationPokemonPath()}/${selected.id}/status`]: "assigned",
@@ -485,6 +556,8 @@ async function assignPokemonToUser({ user, oldPokemonId = null, selectedPokemon 
     [`${generationPokemonPath()}/${selected.id}/imageUrl`]: null,
     [`${generationPokemonPath()}/${selected.id}/artistName`]: null,
     [`${generationPokemonPath()}/${selected.id}/authorName`]: finalAuthorName || null,
+    [`${generationUsersPath()}/${user.id}/pokemons`]: userPokemonMap,
+    [`${generationUsersPath()}/${user.id}/activePokemonId`]: selected.id,
     [`${generationUsersPath()}/${user.id}/pokemonId`]: selected.id,
     [`${generationUsersPath()}/${user.id}/status`]: "assigned"
   };
@@ -502,6 +575,10 @@ async function assignPokemonToUser({ user, oldPokemonId = null, selectedPokemon 
       artistName: null,
       authorName: null
     };
+    }
+    if (userPokemonMap[oldPokemonId]?.status === "active") {
+      delete userPokemonMap[oldPokemonId];
+      updates[`${generationUsersPath()}/${user.id}/pokemons`] = userPokemonMap;
     }
   }
 
@@ -537,12 +614,26 @@ async function getPokemonByManualInput(numberValue, nameValue) {
 
 async function assignPokemon() {
   if (!hasNickname()) throw new Error("Pseudo requis.");
-  if (currentUser?.pokemonId && currentPokemon) {
+  const activeEntry = getActivePokemonEntry(currentUser);
+  if (activeEntry) {
     showToast("Déjà un Pokémon en cours.", true);
     return;
   }
 
   const selected = await assignPokemonToUser({ user: currentUser });
+  currentUser.pokemons = {
+    ...normalizeUserPokemonMap(currentUser?.pokemons),
+    [selected.id]: {
+      pokemonId: selected.id,
+      status: "active",
+      image: null,
+      authorName: sanitizeNickname(selected.authorName) || null,
+      assignedAt: Date.now(),
+      completedAt: null,
+      updatedAt: Date.now()
+    }
+  };
+  currentUser.activePokemonId = selected.id;
   currentUser.pokemonId = selected.id;
   currentUser.status = "assigned";
   currentPokemon = selected;
@@ -565,6 +656,21 @@ async function rerollPokemon() {
   });
 
   currentUser.rerollsUsed = newCount;
+  const updatedMap = { ...normalizeUserPokemonMap(currentUser?.pokemons) };
+  if (currentPokemon?.id && updatedMap[currentPokemon.id]?.status === "active") {
+    delete updatedMap[currentPokemon.id];
+  }
+  updatedMap[selected.id] = {
+    pokemonId: selected.id,
+    status: "active",
+    image: null,
+    authorName: sanitizeNickname(selected.authorName) || null,
+    assignedAt: Date.now(),
+    completedAt: null,
+    updatedAt: Date.now()
+  };
+  currentUser.pokemons = updatedMap;
+  currentUser.activePokemonId = selected.id;
   currentUser.pokemonId = selected.id;
   currentUser.status = "assigned";
   currentPokemon = selected;
@@ -579,19 +685,43 @@ async function adminAssignManualPokemon() {
   const customPseudo = sanitizeNickname(el.adminAssignPseudo.value);
 
   if (selectedPokemon.userId && selectedPokemon.userId !== currentUser.id) {
+    const otherUserSnap = await get(ref(db, `${generationUsersPath()}/${selectedPokemon.userId}`));
+    const otherUserData = otherUserSnap.exists() ? otherUserSnap.val() : {};
+    const otherMap = normalizeUserPokemonMap(otherUserData?.pokemons);
+    if (otherMap[selectedPokemon.id]?.status === "active") {
+      delete otherMap[selectedPokemon.id];
+    }
     await update(ref(db), {
+      [`${generationUsersPath()}/${selectedPokemon.userId}/pokemons`]: otherMap,
+      [`${generationUsersPath()}/${selectedPokemon.userId}/activePokemonId`]: null,
       [`${generationUsersPath()}/${selectedPokemon.userId}/pokemonId`]: null,
       [`${generationUsersPath()}/${selectedPokemon.userId}/status`]: "idle"
     });
   }
 
+  const activeEntry = getActivePokemonEntry(currentUser);
   const selected = await assignPokemonToUser({
     user: currentUser,
-    oldPokemonId: currentUser.pokemonId || null,
+    oldPokemonId: activeEntry?.pokemonId || null,
     selectedPokemon,
     authorName: customPseudo || currentUser.displayName
   });
 
+  const updatedMap = { ...normalizeUserPokemonMap(currentUser?.pokemons) };
+  if (activeEntry?.pokemonId && activeEntry.pokemonId !== selected.id && updatedMap[activeEntry.pokemonId]?.status === "active") {
+    delete updatedMap[activeEntry.pokemonId];
+  }
+  updatedMap[selected.id] = {
+    pokemonId: selected.id,
+    status: "active",
+    image: null,
+    authorName: sanitizeNickname(selected.authorName) || null,
+    assignedAt: Date.now(),
+    completedAt: null,
+    updatedAt: Date.now()
+  };
+  currentUser.pokemons = updatedMap;
+  currentUser.activePokemonId = selected.id;
   currentUser.pokemonId = selected.id;
   currentUser.status = "assigned";
   currentPokemon = selected;
@@ -612,13 +742,36 @@ async function uploadDrawing(file) {
     [`${generationPokemonPath()}/${currentPokemon.id}/authorName`]: authorName,
     [`${generationPokemonPath()}/${currentPokemon.id}/artistName`]: null,
     [`${generationPokemonPath()}/${currentPokemon.id}/completedAt`]: Date.now(),
-    [`${generationUsersPath()}/${currentUser.id}/status`]: "completed"
+    [`${generationUsersPath()}/${currentUser.id}/pokemons/${currentPokemon.id}`]: {
+      pokemonId: currentPokemon.id,
+      status: "completed",
+      image: imageData,
+      authorName,
+      assignedAt: currentPokemon.assignedAt || null,
+      completedAt: Date.now(),
+      updatedAt: Date.now()
+    },
+    [`${generationUsersPath()}/${currentUser.id}/activePokemonId`]: null,
+    [`${generationUsersPath()}/${currentUser.id}/pokemonId`]: null,
+    [`${generationUsersPath()}/${currentUser.id}/status`]: "idle"
   });
 
-  currentPokemon.status = "completed";
-  currentPokemon.imageUrl = imageData;
-  currentPokemon.authorName = authorName;
-  currentUser.status = "completed";
+  currentUser.pokemons = {
+    ...normalizeUserPokemonMap(currentUser?.pokemons),
+    [currentPokemon.id]: {
+      pokemonId: currentPokemon.id,
+      status: "completed",
+      image: imageData,
+      authorName,
+      assignedAt: currentPokemon.assignedAt || null,
+      completedAt: Date.now(),
+      updatedAt: Date.now()
+    }
+  };
+  currentUser.activePokemonId = null;
+  currentUser.pokemonId = null;
+  currentUser.status = "idle";
+  currentPokemon = null;
   renderMyPokemon();
   showToast("Dessin envoyé.");
 }
@@ -679,6 +832,14 @@ async function adminSetAvailable(pokemon) {
   };
 
   if (pokemon.userId) {
+    const userSnap = await get(ref(db, `${generationUsersPath()}/${pokemon.userId}`));
+    const userData = userSnap.exists() ? userSnap.val() : {};
+    const userPokemonMap = normalizeUserPokemonMap(userData?.pokemons);
+    if (userPokemonMap[pokemon.id]?.status === "active") {
+      delete userPokemonMap[pokemon.id];
+    }
+    updates[`${generationUsersPath()}/${pokemon.userId}/pokemons`] = userPokemonMap;
+    updates[`${generationUsersPath()}/${pokemon.userId}/activePokemonId`] = null;
     updates[`${generationUsersPath()}/${pokemon.userId}/pokemonId`] = null;
     updates[`${generationUsersPath()}/${pokemon.userId}/status`] = "idle";
   }
@@ -737,7 +898,22 @@ function bindAdmin() {
 async function syncCurrentUser() {
   if (!currentUser?.id) return;
   const snap = await get(ref(db, `${generationUsersPath()}/${currentUser.id}`));
-  currentUser = snap.exists() ? { id: currentUser.id, ...snap.val() } : null;
+  if (!snap.exists()) {
+    currentUser = null;
+    renderAuthState();
+    return;
+  }
+  const data = snap.val();
+  const pokemons = ensureLegacyPokemonMap(data);
+  const activeEntry = Object.values(pokemons).find((entry) => entry.status === "active") || null;
+  currentUser = {
+    id: currentUser.id,
+    ...data,
+    pokemons,
+    activePokemonId: activeEntry?.pokemonId || null,
+    pokemonId: activeEntry?.pokemonId || null,
+    status: activeEntry ? "assigned" : "idle"
+  };
   renderAuthState();
 }
 
