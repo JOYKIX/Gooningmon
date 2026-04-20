@@ -14,9 +14,11 @@ import {
   get,
   set,
   update,
+  remove,
   runTransaction,
   onValue
 } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-database.js";
+import JSZip from "https://esm.sh/jszip@3.10.1";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBmC1_Hklc1SgvVQXyNT07TYDfVn2euRO8",
@@ -41,6 +43,18 @@ const ROUTES = {
   "/galerie": "view-galerie",
   "/fresque": "view-fresque"
 };
+
+function generationRootPath(generation = activeGeneration) {
+  return `generations/${generation}`;
+}
+
+function generationPokemonPath(generation = activeGeneration) {
+  return `${generationRootPath(generation)}/pokemon`;
+}
+
+function generationUsersPath(generation = activeGeneration) {
+  return `${generationRootPath(generation)}/users`;
+}
 
 const POKEMON_151 = [
   "Bulbizarre", "Herbizarre", "Florizarre", "Salamèche", "Reptincel", "Dracaufeu", "Carapuce", "Carabaffe", "Tortank", "Chenipan", "Chrysacier", "Papilusion", "Aspicot", "Coconfort", "Dardargnan", "Roucool", "Roucoups", "Roucarnage", "Rattata", "Rattatac", "Piafabec", "Rapasdepic", "Abo", "Arbok", "Pikachu", "Raichu", "Sabelette", "Sablaireau", "Nidoran♀", "Nidorina", "Nidoqueen", "Nidoran♂", "Nidorino", "Nidoking", "Mélofée", "Mélodelfe", "Goupix", "Feunard", "Rondoudou", "Grodoudou", "Nosferapti", "Nosferalto", "Mystherbe", "Ortide", "Rafflesia", "Paras", "Parasect", "Mimitoss", "Aéromite", "Taupiqueur", "Triopikeur", "Miaouss", "Persian", "Psykokwak", "Akwakwak", "Férosinge", "Colossinge", "Caninos", "Arcanin", "Ptitard", "Têtarte", "Tartard", "Abra", "Kadabra", "Alakazam", "Machoc", "Machopeur", "Mackogneur", "Chétiflor", "Boustiflor", "Empiflor", "Tentacool", "Tentacruel", "Racaillou", "Gravalanch", "Grolem", "Ponyta", "Galopa", "Ramoloss", "Flagadoss", "Magnéti", "Magnéton", "Canarticho", "Doduo", "Dodrio", "Otaria", "Lamantine", "Tadmorv", "Grotadmorv", "Kokiyas", "Crustabri", "Fantominus", "Spectrum", "Ectoplasma", "Onix", "Soporifik", "Hypnomade", "Krabby", "Krabboss", "Voltorbe", "Électrode", "Noeunoeuf", "Noadkoko", "Osselait", "Ossatueur", "Kicklee", "Tygnon", "Excelangue", "Smogo", "Smogogo", "Rhinocorne", "Rhinoféros", "Leveinard", "Saquedeneu", "Kangourex", "Hypotrempe", "Hypocéan", "Poissirène", "Poissoroy", "Stari", "Staross", "M. Mime", "Insécateur", "Lippoutou", "Élektek", "Magmar", "Scarabrute", "Tauros", "Magicarpe", "Léviator", "Lokhlass", "Métamorph", "Évoli", "Aquali", "Voltali", "Pyroli", "Porygon", "Amonita", "Amonistar", "Kabuto", "Kabutops", "Ptéra", "Ronflex", "Artikodin", "Électhor", "Sulfura", "Minidraco", "Draco", "Dracolosse", "Mewtwo", "Mew"
@@ -84,8 +98,14 @@ const el = {
   fresqueMode: document.getElementById("fresqueMode"),
   fresqueValue: document.getElementById("fresqueValue"),
   fresqueForm: document.getElementById("fresqueForm"),
+  fresqueShowNumber: document.getElementById("fresqueShowNumber"),
+  fresqueShowName: document.getElementById("fresqueShowName"),
+  fresqueShowPseudo: document.getElementById("fresqueShowPseudo"),
   downloadFresqueBtn: document.getElementById("downloadFresqueBtn"),
   adminSection: document.getElementById("adminSection"),
+  downloadGenerationZipBtn: document.getElementById("downloadGenerationZipBtn"),
+  generationSelect: document.getElementById("generationSelect"),
+  changeGenerationBtn: document.getElementById("changeGenerationBtn"),
   adminList: document.getElementById("adminList"),
   toast: document.getElementById("toast")
 };
@@ -94,6 +114,11 @@ let currentUser = null;
 let currentPokemon = null;
 let isAuthActionPending = false;
 let completedPokemonList = [];
+let activeGeneration = "gen1";
+let unbindPokemonFeed = null;
+let unbindAdminFeed = null;
+let isAdminListClickBound = false;
+const fresqueDisplayOptions = { number: true, name: true, pseudo: true };
 
 function normalizeEmail(value) {
   return (value || "").trim().toLowerCase();
@@ -183,7 +208,7 @@ function bindRouter() {
 }
 
 async function ensurePokemonPool() {
-  const snap = await get(ref(db, "pokemon"));
+  const snap = await get(ref(db, generationPokemonPath()));
   if (snap.exists()) return;
 
   const payload = {};
@@ -191,11 +216,11 @@ async function ensurePokemonPool() {
     const id = i + 1;
     payload[id] = { id, name, status: "available", userId: null, imageUrl: null, assignedAt: null, completedAt: null };
   });
-  await set(ref(db, "pokemon"), payload);
+  await set(ref(db, generationPokemonPath()), payload);
 }
 
 async function syncCurrentUserFromAuth(authUser) {
-  const userRef = ref(db, `users/${authUser.uid}`);
+  const userRef = ref(db, `${generationUsersPath()}/${authUser.uid}`);
   const snap = await get(userRef);
   const existing = snap.exists() ? snap.val() : {};
 
@@ -265,6 +290,8 @@ function renderAuthState() {
     el.statusText.textContent = roleLabel;
   }
   el.adminSection.classList.toggle("hidden", !currentUser.isAdmin);
+  el.downloadGenerationZipBtn.disabled = !currentUser.isAdmin;
+  el.changeGenerationBtn.disabled = !currentUser.isAdmin;
   renderMyPokemon();
 }
 
@@ -348,6 +375,18 @@ function computeFresqueLayout(total, mode, value) {
   return { cols, rows: Math.ceil(total / cols) };
 }
 
+function getFresqueMetaText(pokemon) {
+  const number = `#${String(pokemon.id).padStart(3, "0")}`;
+  const parts = [];
+  if (fresqueDisplayOptions.number) parts.push(number);
+  if (fresqueDisplayOptions.name) parts.push(pokemon.name);
+  const left = parts.join(" ");
+  if (fresqueDisplayOptions.pseudo && pokemon.artistName) {
+    return left ? `${left} — ${pokemon.artistName}` : pokemon.artistName;
+  }
+  return left;
+}
+
 function renderFresque() {
   if (!completedPokemonList.length) {
     el.fresqueInfo.textContent = "Aucun dessin.";
@@ -367,7 +406,7 @@ function renderFresque() {
   el.fresqueGrid.innerHTML = fresquePokemonList.map((p) => `
     <article class="fresque-cell">
       <img src="${p.imageUrl}" alt="${p.name}" loading="lazy" />
-      <div class="fresque-meta">#${String(p.id).padStart(3, "0")} ${p.name}</div>
+      <div class="fresque-meta">${getFresqueMetaText(p)}</div>
     </article>
   `).join("");
   el.downloadFresqueBtn.disabled = false;
@@ -380,13 +419,13 @@ async function syncCurrentPokemon() {
     return;
   }
 
-  const snap = await get(ref(db, `pokemon/${currentUser.pokemonId}`));
+  const snap = await get(ref(db, `${generationPokemonPath()}/${currentUser.pokemonId}`));
   currentPokemon = snap.exists() ? snap.val() : null;
   renderMyPokemon();
 }
 
 async function pickAndAssignPokemon(user, oldPokemonId = null) {
-  const allSnap = await get(ref(db, "pokemon"));
+  const allSnap = await get(ref(db, generationPokemonPath()));
   const all = allSnap.val() || {};
   const available = Object.values(all).filter((p) => p.status === "available");
 
@@ -395,7 +434,7 @@ async function pickAndAssignPokemon(user, oldPokemonId = null) {
   let selected = null;
   for (let i = 0; i < 20 && !selected; i += 1) {
     const candidate = available[Math.floor(Math.random() * available.length)];
-    const tx = await runTransaction(ref(db, `pokemon/${candidate.id}`), (p) => {
+    const tx = await runTransaction(ref(db, `${generationPokemonPath()}/${candidate.id}`), (p) => {
       if (!p || p.status !== "available") return;
       return {
         ...p,
@@ -413,12 +452,12 @@ async function pickAndAssignPokemon(user, oldPokemonId = null) {
   if (!selected) throw new Error("Conflit. Réessaie.");
 
   const updates = {
-    [`users/${user.id}/pokemonId`]: selected.id,
-    [`users/${user.id}/status`]: "assigned"
+    [`${generationUsersPath()}/${user.id}/pokemonId`]: selected.id,
+    [`${generationUsersPath()}/${user.id}/status`]: "assigned"
   };
 
   if (oldPokemonId) {
-    updates[`pokemon/${oldPokemonId}`] = {
+    updates[`${generationPokemonPath()}/${oldPokemonId}`] = {
       ...all[oldPokemonId],
       status: "available",
       userId: null,
@@ -457,9 +496,9 @@ async function rerollPokemon() {
   const selected = await pickAndAssignPokemon(currentUser, currentPokemon.id);
   const newCount = rerollsUsed + 1;
   await update(ref(db), {
-    [`users/${currentUser.id}/rerollsUsed`]: newCount,
-    [`users/${currentUser.id}/pokemonId`]: selected.id,
-    [`users/${currentUser.id}/status`]: "assigned"
+    [`${generationUsersPath()}/${currentUser.id}/rerollsUsed`]: newCount,
+    [`${generationUsersPath()}/${currentUser.id}/pokemonId`]: selected.id,
+    [`${generationUsersPath()}/${currentUser.id}/status`]: "assigned"
   });
 
   currentUser.rerollsUsed = newCount;
@@ -476,11 +515,11 @@ async function uploadDrawing(file) {
   const imageData = await fileToDataUrl(file);
 
   await update(ref(db), {
-    [`pokemon/${currentPokemon.id}/status`]: "completed",
-    [`pokemon/${currentPokemon.id}/imageUrl`]: imageData,
-    [`pokemon/${currentPokemon.id}/artistName`]: currentUser.displayName,
-    [`pokemon/${currentPokemon.id}/completedAt`]: Date.now(),
-    [`users/${currentUser.id}/status`]: "completed"
+    [`${generationPokemonPath()}/${currentPokemon.id}/status`]: "completed",
+    [`${generationPokemonPath()}/${currentPokemon.id}/imageUrl`]: imageData,
+    [`${generationPokemonPath()}/${currentPokemon.id}/artistName`]: currentUser.displayName,
+    [`${generationPokemonPath()}/${currentPokemon.id}/completedAt`]: Date.now(),
+    [`${generationUsersPath()}/${currentUser.id}/status`]: "completed"
   });
 
   currentPokemon.status = "completed";
@@ -497,10 +536,10 @@ async function restartAdventure() {
   }
 
   await update(ref(db), {
-    [`users/${currentUser.id}/pokemonId`]: null,
-    [`users/${currentUser.id}/status`]: "idle",
-    [`users/${currentUser.id}/rerollsUsed`]: 0,
-    [`users/${currentUser.id}/updatedAt`]: Date.now()
+    [`${generationUsersPath()}/${currentUser.id}/pokemonId`]: null,
+    [`${generationUsersPath()}/${currentUser.id}/status`]: "idle",
+    [`${generationUsersPath()}/${currentUser.id}/rerollsUsed`]: 0,
+    [`${generationUsersPath()}/${currentUser.id}/updatedAt`]: Date.now()
   });
 
   currentUser.pokemonId = null;
@@ -521,7 +560,8 @@ function fileToDataUrl(file) {
 }
 
 function bindPokemonFeed() {
-  onValue(ref(db, "pokemon"), (snap) => {
+  if (unbindPokemonFeed) unbindPokemonFeed();
+  unbindPokemonFeed = onValue(ref(db, generationPokemonPath()), (snap) => {
     const allPokemon = snap.val() || {};
     completedPokemonList = getCompletedPokemon(allPokemon);
     renderGallery();
@@ -531,17 +571,17 @@ function bindPokemonFeed() {
 
 async function adminSetAvailable(pokemon) {
   const updates = {
-    [`pokemon/${pokemon.id}/status`]: "available",
-    [`pokemon/${pokemon.id}/imageUrl`]: null,
-    [`pokemon/${pokemon.id}/artistName`]: null,
-    [`pokemon/${pokemon.id}/userId`]: null,
-    [`pokemon/${pokemon.id}/assignedAt`]: null,
-    [`pokemon/${pokemon.id}/completedAt`]: null
+    [`${generationPokemonPath()}/${pokemon.id}/status`]: "available",
+    [`${generationPokemonPath()}/${pokemon.id}/imageUrl`]: null,
+    [`${generationPokemonPath()}/${pokemon.id}/artistName`]: null,
+    [`${generationPokemonPath()}/${pokemon.id}/userId`]: null,
+    [`${generationPokemonPath()}/${pokemon.id}/assignedAt`]: null,
+    [`${generationPokemonPath()}/${pokemon.id}/completedAt`]: null
   };
 
   if (pokemon.userId) {
-    updates[`users/${pokemon.userId}/pokemonId`] = null;
-    updates[`users/${pokemon.userId}/status`] = "idle";
+    updates[`${generationUsersPath()}/${pokemon.userId}/pokemonId`] = null;
+    updates[`${generationUsersPath()}/${pokemon.userId}/status`] = "idle";
   }
 
   await update(ref(db), updates);
@@ -549,7 +589,8 @@ async function adminSetAvailable(pokemon) {
 }
 
 function bindAdmin() {
-  onValue(ref(db, "pokemon"), (snap) => {
+  if (unbindAdminFeed) unbindAdminFeed();
+  unbindAdminFeed = onValue(ref(db, generationPokemonPath()), (snap) => {
     if (!currentUser?.isAdmin) return;
     const items = Object.values(snap.val() || {})
       .filter((p) => p.status !== "available")
@@ -575,12 +616,14 @@ function bindAdmin() {
     `).join("");
   });
 
+  if (isAdminListClickBound) return;
+  isAdminListClickBound = true;
   el.adminList.addEventListener("click", async (e) => {
     const btn = e.target.closest("button[data-action]");
     if (!btn || !currentUser?.isAdmin) return;
 
     try {
-      const snap = await get(ref(db, `pokemon/${btn.dataset.id}`));
+      const snap = await get(ref(db, `${generationPokemonPath()}/${btn.dataset.id}`));
       if (!snap.exists()) return;
 
       await adminSetAvailable(snap.val());
@@ -594,7 +637,7 @@ function bindAdmin() {
 
 async function syncCurrentUser() {
   if (!currentUser?.id) return;
-  const snap = await get(ref(db, `users/${currentUser.id}`));
+  const snap = await get(ref(db, `${generationUsersPath()}/${currentUser.id}`));
   currentUser = snap.exists() ? { id: currentUser.id, ...snap.val() } : null;
   renderAuthState();
 }
@@ -659,7 +702,7 @@ async function updateNickname(newNickname) {
   const nickname = sanitizeNickname(newNickname);
   if (!nickname) throw new Error("Pseudo requis.");
 
-  await update(ref(db, `users/${currentUser.id}`), {
+  await update(ref(db, `${generationUsersPath()}/${currentUser.id}`), {
     displayName: nickname,
     updatedAt: Date.now()
   });
@@ -705,6 +748,100 @@ async function downloadFresqueImage() {
   link.href = canvas.toDataURL("image/png");
   link.download = `gooningmon-fresque-${Date.now()}.png`;
   link.click();
+}
+
+function getFileExtensionFromImageUrl(imageUrl) {
+  if (!imageUrl) return "png";
+  if (imageUrl.startsWith("data:")) {
+    const match = imageUrl.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,/);
+    const ext = match?.[1]?.toLowerCase() || "png";
+    return ext === "jpeg" ? "jpg" : ext;
+  }
+  const clean = imageUrl.split("?")[0];
+  const found = clean.match(/\.([a-zA-Z0-9]+)$/);
+  return found?.[1]?.toLowerCase() || "png";
+}
+
+async function imageUrlToBytes(imageUrl) {
+  if (imageUrl.startsWith("data:")) {
+    const base64 = imageUrl.split(",")[1] || "";
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+  const response = await fetch(imageUrl);
+  const buffer = await response.arrayBuffer();
+  return new Uint8Array(buffer);
+}
+
+async function downloadGenerationZip(generation = activeGeneration) {
+  if (!currentUser?.isAdmin) throw new Error("Admin.");
+  const snap = await get(ref(db, generationPokemonPath(generation)));
+  const completed = getCompletedPokemon(snap.val() || {}).sort((a, b) => a.id - b.id);
+  if (!completed.length) throw new Error("Aucune image.");
+
+  const zip = new JSZip();
+  const usedNames = new Set();
+  await Promise.all(completed.map(async (pokemon) => {
+    const base = `#${String(pokemon.id).padStart(3, "0")} ${pokemon.name}`;
+    const ext = getFileExtensionFromImageUrl(pokemon.imageUrl);
+    let filename = `${base}.${ext}`;
+    let i = 1;
+    while (usedNames.has(filename)) {
+      i += 1;
+      filename = `${base} (${i}).${ext}`;
+    }
+    usedNames.add(filename);
+    zip.file(filename, await imageUrlToBytes(pokemon.imageUrl));
+  }));
+
+  const blob = await zip.generateAsync({ type: "blob" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `gooningmon-${generation}.zip`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function loadActiveGeneration() {
+  const snap = await get(ref(db, "meta/activeGeneration"));
+  activeGeneration = snap.exists() ? snap.val() : "gen1";
+  if (!snap.exists()) {
+    await set(ref(db, "meta/activeGeneration"), activeGeneration);
+  }
+  el.generationSelect.value = activeGeneration;
+}
+
+async function changeGeneration(nextGeneration) {
+  if (!currentUser?.isAdmin) throw new Error("Admin.");
+  if (!nextGeneration || nextGeneration === activeGeneration) return;
+
+  const confirmChange = window.confirm("Changer génération ?");
+  if (!confirmChange) return;
+
+  const wantsZip = window.confirm("Télécharger ZIP avant suppression ?");
+  if (wantsZip) {
+    try {
+      await downloadGenerationZip(activeGeneration);
+    } catch (err) {
+      showToast(err.message || "ZIP impossible.", true);
+    }
+  }
+
+  const confirmDelete = window.confirm(`Supprimer ${activeGeneration} ?`);
+  if (!confirmDelete) return;
+
+  await remove(ref(db, generationRootPath(activeGeneration)));
+  await set(ref(db, "meta/activeGeneration"), nextGeneration);
+  activeGeneration = nextGeneration;
+  await ensurePokemonPool();
+  bindPokemonFeed();
+  bindAdmin();
+  await syncCurrentUserFromAuth(auth.currentUser);
+  await syncCurrentPokemon();
+  el.generationSelect.value = activeGeneration;
 }
 
 function explainSetupIfNeeded() {
@@ -762,6 +899,18 @@ function bindEvents() {
   });
 
   el.fresqueForm.addEventListener("input", renderFresque);
+  el.fresqueShowNumber.addEventListener("change", () => {
+    fresqueDisplayOptions.number = el.fresqueShowNumber.checked;
+    renderFresque();
+  });
+  el.fresqueShowName.addEventListener("change", () => {
+    fresqueDisplayOptions.name = el.fresqueShowName.checked;
+    renderFresque();
+  });
+  el.fresqueShowPseudo.addEventListener("change", () => {
+    fresqueDisplayOptions.pseudo = el.fresqueShowPseudo.checked;
+    renderFresque();
+  });
   el.downloadFresqueBtn.addEventListener("click", async () => {
     try {
       await downloadFresqueImage();
@@ -770,12 +919,31 @@ function bindEvents() {
       showToast(err.message || "Export impossible.", true);
     }
   });
+  el.downloadGenerationZipBtn.addEventListener("click", async () => {
+    if (!currentUser?.isAdmin) return;
+    try {
+      await downloadGenerationZip();
+      showToast("ZIP téléchargé.");
+    } catch (err) {
+      showToast(err.message || "ZIP impossible.", true);
+    }
+  });
+  el.changeGenerationBtn.addEventListener("click", async () => {
+    if (!currentUser?.isAdmin) return;
+    try {
+      await changeGeneration(el.generationSelect.value);
+      showToast(`Génération: ${activeGeneration}`);
+    } catch (err) {
+      showToast(err.message || "Changement impossible.", true);
+    }
+  });
 }
 
 async function boot() {
   explainSetupIfNeeded();
   bindRouter();
   bindEvents();
+  await loadActiveGeneration();
   await ensurePokemonPool();
   bindPokemonFeed();
   bindAdmin();

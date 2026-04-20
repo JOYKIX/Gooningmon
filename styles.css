@@ -178,6 +178,13 @@ button.ghost { background: rgba(255, 255, 255, 0.05); color: var(--text); border
 
 .gallery-meta,
 .fresque-meta { padding: .7rem; font-size: .9rem; }
+.fresque-meta {
+  text-align: center;
+  font-size: .8rem;
+  color: var(--muted);
+  padding-top: .45rem;
+  padding-bottom: .55rem;
+}
 
 .fresque-card { display: grid; gap: .9rem; }
 .fresque-head { display: flex; justify-content: space-between; align-items: center; gap: .8rem; flex-wrap: wrap; }
@@ -187,8 +194,33 @@ button.ghost { background: rgba(255, 255, 255, 0.05); color: var(--text); border
   gap: .7rem;
 }
 .fresque-controls label { display: grid; gap: .35rem; font-weight: 600; }
+.fresque-info-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .8rem;
+}
+.fresque-info-toggles label {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .84rem;
+  color: var(--muted);
+}
+.fresque-info-toggles input {
+  width: auto;
+}
 
 .admin-list { display: grid; gap: .8rem; }
+.admin-tools {
+  display: grid;
+  gap: .7rem;
+  margin-bottom: .9rem;
+}
+.admin-generation-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: .5rem;
+}
 .admin-row {
   border: 1px solid var(--stroke);
   border-radius: 12px;
