@@ -187,6 +187,13 @@ function sanitizeNickname(value) {
   return (value || "").trim().slice(0, 30);
 }
 
+function normalizeNicknameForLookup(value) {
+  return sanitizeNickname(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function normalizePokemonName(value) {
   return (value || "")
     .normalize("NFD")
@@ -612,6 +619,27 @@ async function getPokemonByManualInput(numberValue, nameValue) {
   throw new Error("Pokémon introuvable.");
 }
 
+async function findUserByPublicPseudo(pseudo) {
+  const normalizedPseudo = normalizeNicknameForLookup(pseudo);
+  if (!normalizedPseudo) throw new Error("Pseudo requis.");
+
+  const usersSnap = await get(ref(db, generationUsersPath()));
+  const users = usersSnap.val() || {};
+  const matches = Object.entries(users)
+    .filter(([, userData]) => normalizeNicknameForLookup(userData?.displayName) === normalizedPseudo)
+    .map(([id, userData]) => ({ id, ...userData }));
+
+  if (!matches.length) throw new Error("Pseudo introuvable.");
+  if (matches.length > 1) throw new Error("Pseudo ambigu.");
+
+  const target = matches[0];
+  return {
+    ...target,
+    pokemons: ensureLegacyPokemonMap(target),
+    activePokemonId: getActivePokemonEntry(target)?.pokemonId || null
+  };
+}
+
 async function assignPokemon() {
   if (!hasNickname()) throw new Error("Pseudo requis.");
   const activeEntry = getActivePokemonEntry(currentUser);
@@ -683,8 +711,9 @@ async function adminAssignManualPokemon() {
   if (!hasNickname()) throw new Error("Pseudo requis.");
   const selectedPokemon = await getPokemonByManualInput(el.adminAssignNumber.value, el.adminAssignName.value);
   const customPseudo = sanitizeNickname(el.adminAssignPseudo.value);
+  const targetUser = customPseudo ? await findUserByPublicPseudo(customPseudo) : currentUser;
 
-  if (selectedPokemon.userId && selectedPokemon.userId !== currentUser.id) {
+  if (selectedPokemon.userId && selectedPokemon.userId !== targetUser.id) {
     const otherUserSnap = await get(ref(db, `${generationUsersPath()}/${selectedPokemon.userId}`));
     const otherUserData = otherUserSnap.exists() ? otherUserSnap.val() : {};
     const otherMap = normalizeUserPokemonMap(otherUserData?.pokemons);
@@ -699,32 +728,37 @@ async function adminAssignManualPokemon() {
     });
   }
 
-  const activeEntry = getActivePokemonEntry(currentUser);
+  const activeEntry = getActivePokemonEntry(targetUser);
   const selected = await assignPokemonToUser({
-    user: currentUser,
+    user: targetUser,
     oldPokemonId: activeEntry?.pokemonId || null,
     selectedPokemon,
-    authorName: customPseudo || currentUser.displayName
+    authorName: sanitizeNickname(targetUser.displayName) || customPseudo || currentUser.displayName
   });
 
-  const updatedMap = { ...normalizeUserPokemonMap(currentUser?.pokemons) };
-  if (activeEntry?.pokemonId && activeEntry.pokemonId !== selected.id && updatedMap[activeEntry.pokemonId]?.status === "active") {
-    delete updatedMap[activeEntry.pokemonId];
+  if (targetUser.id === currentUser.id) {
+    const updatedMap = { ...normalizeUserPokemonMap(currentUser?.pokemons) };
+    if (activeEntry?.pokemonId && activeEntry.pokemonId !== selected.id && updatedMap[activeEntry.pokemonId]?.status === "active") {
+      delete updatedMap[activeEntry.pokemonId];
+    }
+    updatedMap[selected.id] = {
+      pokemonId: selected.id,
+      status: "active",
+      image: null,
+      authorName: sanitizeNickname(selected.authorName) || null,
+      assignedAt: Date.now(),
+      completedAt: null,
+      updatedAt: Date.now()
+    };
+    currentUser.pokemons = updatedMap;
+    currentUser.activePokemonId = selected.id;
+    currentUser.pokemonId = selected.id;
+    currentUser.status = "assigned";
+    currentPokemon = selected;
+  } else {
+    await syncCurrentUser();
+    await syncCurrentPokemon();
   }
-  updatedMap[selected.id] = {
-    pokemonId: selected.id,
-    status: "active",
-    image: null,
-    authorName: sanitizeNickname(selected.authorName) || null,
-    assignedAt: Date.now(),
-    completedAt: null,
-    updatedAt: Date.now()
-  };
-  currentUser.pokemons = updatedMap;
-  currentUser.activePokemonId = selected.id;
-  currentUser.pokemonId = selected.id;
-  currentUser.status = "assigned";
-  currentPokemon = selected;
   el.adminAssignForm.reset();
   renderMyPokemon();
   showToast(`Attribué: ${selected.name}`);
@@ -734,7 +768,13 @@ async function uploadDrawing(file) {
   if (!hasNickname()) throw new Error("Pseudo requis.");
   if (!currentPokemon || currentPokemon.status !== "assigned") throw new Error("Aucun Pokémon en cours.");
   const imageData = await fileToDataUrl(file);
-  const authorName = sanitizeNickname(currentPokemon.authorName) || sanitizeNickname(currentUser.displayName);
+  const targetUserId = currentPokemon.userId || currentUser.id;
+  const targetUserSnap = await get(ref(db, `${generationUsersPath()}/${targetUserId}`));
+  const targetUserData = targetUserSnap.exists() ? targetUserSnap.val() : {};
+  const targetPokemonMap = normalizeUserPokemonMap(targetUserData?.pokemons);
+  const authorName = sanitizeNickname(currentPokemon.authorName)
+    || sanitizeNickname(targetUserData?.displayName)
+    || sanitizeNickname(currentUser.displayName);
 
   await update(ref(db), {
     [`${generationPokemonPath()}/${currentPokemon.id}/status`]: "completed",
@@ -742,35 +782,39 @@ async function uploadDrawing(file) {
     [`${generationPokemonPath()}/${currentPokemon.id}/authorName`]: authorName,
     [`${generationPokemonPath()}/${currentPokemon.id}/artistName`]: null,
     [`${generationPokemonPath()}/${currentPokemon.id}/completedAt`]: Date.now(),
-    [`${generationUsersPath()}/${currentUser.id}/pokemons/${currentPokemon.id}`]: {
+    [`${generationUsersPath()}/${targetUserId}/pokemons/${currentPokemon.id}`]: {
       pokemonId: currentPokemon.id,
       status: "completed",
       image: imageData,
       authorName,
-      assignedAt: currentPokemon.assignedAt || null,
+      assignedAt: targetPokemonMap[currentPokemon.id]?.assignedAt || currentPokemon.assignedAt || null,
       completedAt: Date.now(),
       updatedAt: Date.now()
     },
-    [`${generationUsersPath()}/${currentUser.id}/activePokemonId`]: null,
-    [`${generationUsersPath()}/${currentUser.id}/pokemonId`]: null,
-    [`${generationUsersPath()}/${currentUser.id}/status`]: "idle"
+    [`${generationUsersPath()}/${targetUserId}/activePokemonId`]: null,
+    [`${generationUsersPath()}/${targetUserId}/pokemonId`]: null,
+    [`${generationUsersPath()}/${targetUserId}/status`]: "idle"
   });
 
-  currentUser.pokemons = {
-    ...normalizeUserPokemonMap(currentUser?.pokemons),
-    [currentPokemon.id]: {
-      pokemonId: currentPokemon.id,
-      status: "completed",
-      image: imageData,
-      authorName,
-      assignedAt: currentPokemon.assignedAt || null,
-      completedAt: Date.now(),
-      updatedAt: Date.now()
-    }
-  };
-  currentUser.activePokemonId = null;
-  currentUser.pokemonId = null;
-  currentUser.status = "idle";
+  if (targetUserId === currentUser.id) {
+    currentUser.pokemons = {
+      ...normalizeUserPokemonMap(currentUser?.pokemons),
+      [currentPokemon.id]: {
+        pokemonId: currentPokemon.id,
+        status: "completed",
+        image: imageData,
+        authorName,
+        assignedAt: currentPokemon.assignedAt || null,
+        completedAt: Date.now(),
+        updatedAt: Date.now()
+      }
+    };
+    currentUser.activePokemonId = null;
+    currentUser.pokemonId = null;
+    currentUser.status = "idle";
+  } else {
+    await syncCurrentUser();
+  }
   currentPokemon = null;
   renderMyPokemon();
   showToast("Dessin envoyé.");
