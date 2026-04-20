@@ -109,6 +109,8 @@ const el = {
   adminAssignPseudo: document.getElementById("adminAssignPseudo"),
   adminAssignBtn: document.getElementById("adminAssignBtn"),
   downloadGenerationZipBtn: document.getElementById("downloadGenerationZipBtn"),
+  importGenerationZipBtn: document.getElementById("importGenerationZipBtn"),
+  importGenerationZipInput: document.getElementById("importGenerationZipInput"),
   generationSelect: document.getElementById("generationSelect"),
   changeGenerationBtn: document.getElementById("changeGenerationBtn"),
   adminList: document.getElementById("adminList"),
@@ -304,6 +306,8 @@ function renderAuthState() {
   }
   el.adminSection.classList.toggle("hidden", !currentUser.isAdmin);
   el.downloadGenerationZipBtn.disabled = !currentUser.isAdmin;
+  el.importGenerationZipBtn.disabled = !currentUser.isAdmin;
+  el.importGenerationZipInput.disabled = !currentUser.isAdmin;
   el.changeGenerationBtn.disabled = !currentUser.isAdmin;
   renderMyPokemon();
 }
@@ -857,6 +861,25 @@ function getFileExtensionFromImageUrl(imageUrl) {
   return found?.[1]?.toLowerCase() || "png";
 }
 
+function getMimeTypeFromExtension(ext) {
+  const value = (ext || "").toLowerCase();
+  if (value === "jpg" || value === "jpeg") return "image/jpeg";
+  if (value === "gif") return "image/gif";
+  if (value === "webp") return "image/webp";
+  if (value === "bmp") return "image/bmp";
+  if (value === "svg") return "image/svg+xml";
+  return "image/png";
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Image ZIP illisible."));
+    reader.readAsDataURL(blob);
+  });
+}
+
 async function imageUrlToBytes(imageUrl) {
   if (imageUrl.startsWith("data:")) {
     const base64 = imageUrl.split(",")[1] || "";
@@ -877,6 +900,12 @@ async function downloadGenerationZip(generation = activeGeneration) {
   if (!completed.length) throw new Error("Aucune image.");
 
   const zip = new JSZip();
+  const imagesFolder = zip.folder("images");
+  const metadata = {
+    generation: generationToMetadataValue(generation),
+    createdAt: new Date().toISOString(),
+    data: []
+  };
   const usedNames = new Set();
   await Promise.all(completed.map(async (pokemon) => {
     const base = `#${String(pokemon.id).padStart(3, "0")} ${pokemon.name}`;
@@ -888,8 +917,15 @@ async function downloadGenerationZip(generation = activeGeneration) {
       filename = `${base} (${i}).${ext}`;
     }
     usedNames.add(filename);
-    zip.file(filename, await imageUrlToBytes(pokemon.imageUrl));
+    imagesFolder.file(filename, await imageUrlToBytes(pokemon.imageUrl));
+    metadata.data.push({
+      file: `images/${filename}`,
+      pokemonId: pokemon.id,
+      pokemonName: pokemon.name,
+      authorName: sanitizeNickname(pokemon.authorName) || ""
+    });
   }));
+  zip.file("metadata.json", JSON.stringify(metadata, null, 2));
 
   const blob = await zip.generateAsync({ type: "blob" });
   const url = URL.createObjectURL(blob);
@@ -898,6 +934,128 @@ async function downloadGenerationZip(generation = activeGeneration) {
   link.download = `gooningmon-${generation}.zip`;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function normalizeZipPath(path) {
+  return (path || "").replace(/^\/+/, "").replace(/\\/g, "/");
+}
+
+function generationToMetadataValue(generation) {
+  const match = String(generation || "").match(/^gen(\d+)$/i);
+  return match ? Number(match[1]) : generation;
+}
+
+function metadataValueToGeneration(value) {
+  if (Number.isInteger(value) && value > 0) return `gen${value}`;
+  const text = String(value || "").trim();
+  if (/^\d+$/.test(text)) return `gen${text}`;
+  return text;
+}
+
+async function importGenerationZip(file) {
+  if (!currentUser?.isAdmin) throw new Error("Admin.");
+  if (!file) return;
+
+  const confirmImport = window.confirm("Importer ZIP ?");
+  if (!confirmImport) return;
+
+  const zip = await JSZip.loadAsync(file);
+  const metadataEntry = zip.file("metadata.json");
+  if (!metadataEntry) throw new Error("metadata.json manquant.");
+
+  let metadata = null;
+  try {
+    metadata = JSON.parse(await metadataEntry.async("string"));
+  } catch (err) {
+    throw new Error("metadata.json invalide.");
+  }
+
+  const metadataGeneration = metadataValueToGeneration(metadata?.generation);
+  if (!metadataGeneration) throw new Error("Génération invalide.");
+  const metadataList = Array.isArray(metadata?.data) ? metadata.data : [];
+  if (!metadataList.length) throw new Error("Aucune donnée.");
+
+  const confirmOverwrite = window.confirm("Écraser les données existantes ?");
+  if (!confirmOverwrite) return;
+
+  const importedPokemon = {};
+  let importedCount = 0;
+  let missingCount = 0;
+
+  for (const item of metadataList) {
+    const pokemonId = Number(item?.pokemonId);
+    const pokemonName = String(item?.pokemonName || "").trim();
+    const filePath = normalizeZipPath(item?.file);
+
+    if (!Number.isInteger(pokemonId) || pokemonId < 1 || !pokemonName || !filePath) {
+      missingCount += 1;
+      continue;
+    }
+
+    const imageEntry = zip.file(filePath);
+    if (!imageEntry) {
+      missingCount += 1;
+      continue;
+    }
+
+    try {
+      const imageBlob = await imageEntry.async("blob");
+      const fallbackExt = filePath.split(".").pop() || "png";
+      const typedBlob = imageBlob.type
+        ? imageBlob
+        : imageBlob.slice(0, imageBlob.size, getMimeTypeFromExtension(fallbackExt));
+      importedPokemon[pokemonId] = {
+        id: pokemonId,
+        name: pokemonName,
+        status: "completed",
+        userId: null,
+        assignedAt: null,
+        completedAt: Date.now(),
+        imageUrl: await blobToDataUrl(typedBlob),
+        authorName: sanitizeNickname(item?.authorName) || "",
+        artistName: null
+      };
+      importedCount += 1;
+    } catch (err) {
+      missingCount += 1;
+    }
+  }
+
+  const pool = {};
+  POKEMON_151.forEach((name, i) => {
+    const id = i + 1;
+    pool[id] = importedPokemon[id] || {
+      id,
+      name,
+      status: "available",
+      userId: null,
+      imageUrl: null,
+      assignedAt: null,
+      completedAt: null,
+      authorName: null,
+      artistName: null
+    };
+  });
+
+  await remove(ref(db, generationUsersPath(metadataGeneration)));
+  await set(ref(db, generationPokemonPath(metadataGeneration)), pool);
+
+  if (metadataGeneration !== activeGeneration) {
+    await set(ref(db, "meta/activeGeneration"), metadataGeneration);
+    activeGeneration = metadataGeneration;
+    el.generationSelect.value = activeGeneration;
+  }
+
+  bindPokemonFeed();
+  bindAdmin();
+  await syncCurrentUserFromAuth(auth.currentUser);
+  await syncCurrentPokemon();
+
+  if (missingCount > 0) {
+    showToast(`Importé: ${importedCount} · Ignoré: ${missingCount}`);
+    return;
+  }
+  showToast(`Importé: ${importedCount}`);
 }
 
 async function loadActiveGeneration() {
@@ -1021,6 +1179,21 @@ function bindEvents() {
       showToast("ZIP téléchargé.");
     } catch (err) {
       showToast(err.message || "ZIP impossible.", true);
+    }
+  });
+  el.importGenerationZipBtn.addEventListener("click", () => {
+    if (!currentUser?.isAdmin) return;
+    el.importGenerationZipInput.click();
+  });
+  el.importGenerationZipInput.addEventListener("change", async (e) => {
+    if (!currentUser?.isAdmin) return;
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      await importGenerationZip(file);
+    } catch (err) {
+      showToast(err.message || "Import impossible.", true);
     }
   });
   el.changeGenerationBtn.addEventListener("click", async () => {
