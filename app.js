@@ -42,12 +42,6 @@ const ROUTES = {
   "/fresque": "view-fresque"
 };
 
-const ROUTES = {
-  "/": "view-home",
-  "/galerie": "view-galerie",
-  "/fresque": "view-fresque"
-};
-
 const POKEMON_151 = [
   "Bulbizarre", "Herbizarre", "Florizarre", "Salamèche", "Reptincel", "Dracaufeu", "Carapuce", "Carabaffe", "Tortank", "Chenipan", "Chrysacier", "Papilusion", "Aspicot", "Coconfort", "Dardargnan", "Roucool", "Roucoups", "Roucarnage", "Rattata", "Rattatac", "Piafabec", "Rapasdepic", "Abo", "Arbok", "Pikachu", "Raichu", "Sabelette", "Sablaireau", "Nidoran♀", "Nidorina", "Nidoqueen", "Nidoran♂", "Nidorino", "Nidoking", "Mélofée", "Mélodelfe", "Goupix", "Feunard", "Rondoudou", "Grodoudou", "Nosferapti", "Nosferalto", "Mystherbe", "Ortide", "Rafflesia", "Paras", "Parasect", "Mimitoss", "Aéromite", "Taupiqueur", "Triopikeur", "Miaouss", "Persian", "Psykokwak", "Akwakwak", "Férosinge", "Colossinge", "Caninos", "Arcanin", "Ptitard", "Têtarte", "Tartard", "Abra", "Kadabra", "Alakazam", "Machoc", "Machopeur", "Mackogneur", "Chétiflor", "Boustiflor", "Empiflor", "Tentacool", "Tentacruel", "Racaillou", "Gravalanch", "Grolem", "Ponyta", "Galopa", "Ramoloss", "Flagadoss", "Magnéti", "Magnéton", "Canarticho", "Doduo", "Dodrio", "Otaria", "Lamantine", "Tadmorv", "Grotadmorv", "Kokiyas", "Crustabri", "Fantominus", "Spectrum", "Ectoplasma", "Onix", "Soporifik", "Hypnomade", "Krabby", "Krabboss", "Voltorbe", "Électrode", "Noeunoeuf", "Noadkoko", "Osselait", "Ossatueur", "Kicklee", "Tygnon", "Excelangue", "Smogo", "Smogogo", "Rhinocorne", "Rhinoféros", "Leveinard", "Saquedeneu", "Kangourex", "Hypotrempe", "Hypocéan", "Poissirène", "Poissoroy", "Stari", "Staross", "M. Mime", "Insécateur", "Lippoutou", "Élektek", "Magmar", "Scarabrute", "Tauros", "Magicarpe", "Léviator", "Lokhlass", "Métamorph", "Évoli", "Aquali", "Voltali", "Pyroli", "Porygon", "Amonita", "Amonistar", "Kabuto", "Kabutops", "Ptéra", "Ronflex", "Artikodin", "Électhor", "Sulfura", "Minidraco", "Draco", "Dracolosse", "Mewtwo", "Mew"
 ];
@@ -107,6 +101,10 @@ function normalizeEmail(value) {
 
 function sanitizeNickname(value) {
   return (value || "").trim().slice(0, 30);
+}
+
+function hasNickname(user = currentUser) {
+  return Boolean(sanitizeNickname(user?.displayName));
 }
 
 function logFirebaseError(context, err) {
@@ -206,7 +204,7 @@ async function syncCurrentUserFromAuth(authUser) {
   const role = adminByWhitelist || existing.role === "admin" ? "admin" : "user";
 
   const merged = {
-    displayName: sanitizeNickname(existing.displayName) || getDisplayNameFromAuth(authUser),
+    displayName: sanitizeNickname(existing.displayName),
     email,
     emailNorm: email,
     photoURL: authUser.photoURL || null,
@@ -236,16 +234,16 @@ function renderAuthState() {
       : `Non connecté. Pour GitHub Pages, ouvre ce site depuis https://${EXPECTED_HOSTNAME}.`;
     el.authUserPhoto.classList.add("hidden");
     el.authUserPhoto.removeAttribute("src");
-    el.authUserName.textContent = "Compte connecté";
+    el.authUserName.textContent = "Compte";
     el.authUserEmail.textContent = "";
-    el.welcomeText.textContent = "Bienvenue";
+    el.welcomeText.textContent = "Compte";
     el.statusText.textContent = "";
     el.adminSection.classList.add("hidden");
     el.rerollInfo.textContent = "";
     return;
   }
 
-  el.authUserName.textContent = currentUser.displayName;
+  el.authUserName.textContent = currentUser.displayName || "Pseudo requis";
   el.nicknameInput.value = currentUser.displayName || "";
   el.authUserEmail.textContent = currentUser.email || "";
 
@@ -257,9 +255,15 @@ function renderAuthState() {
   }
 
   const roleLabel = currentUser.role === "admin" ? "Administrateur" : "Utilisateur";
-  el.authStatus.textContent = `Connecté via Google (${roleLabel}).`;
-  el.welcomeText.textContent = `Bienvenue, ${currentUser.displayName}`;
-  el.statusText.textContent = `Rôle: ${roleLabel}`;
+  if (!hasNickname()) {
+    el.authStatus.textContent = "Ajoute un pseudo.";
+    el.welcomeText.textContent = "Pseudo requis";
+    el.statusText.textContent = "Entre un pseudo pour continuer.";
+  } else {
+    el.authStatus.textContent = `Connecté (${roleLabel}).`;
+    el.welcomeText.textContent = currentUser.displayName;
+    el.statusText.textContent = roleLabel;
+  }
   el.adminSection.classList.toggle("hidden", !currentUser.isAdmin);
   renderMyPokemon();
 }
@@ -267,11 +271,21 @@ function renderAuthState() {
 function renderMyPokemon() {
   const rerollsUsed = currentUser?.rerollsUsed || 0;
   const rerollsLeft = Math.max(0, 3 - rerollsUsed);
-  el.rerollInfo.textContent = `Rerolls restants: ${rerollsLeft}/3`;
+  el.rerollInfo.textContent = `Reroll: ${rerollsLeft}/3`;
+
+  if (currentUser && !hasNickname()) {
+    el.pokemonCard.className = "pokemon-card muted";
+    el.pokemonCard.textContent = "Pseudo requis.";
+    el.assignBtn.disabled = true;
+    el.rerollBtn.disabled = true;
+    el.uploadBtn.disabled = true;
+    el.restartBtn.classList.add("hidden");
+    return;
+  }
 
   if (!currentPokemon) {
     el.pokemonCard.className = "pokemon-card muted";
-    el.pokemonCard.textContent = "Aucun Pokémon attribué.";
+    el.pokemonCard.textContent = "Aucun Pokémon.";
     el.assignBtn.disabled = false;
     el.rerollBtn.disabled = true;
     el.uploadBtn.disabled = true;
@@ -304,7 +318,7 @@ function getCompletedPokemon(allPokemon) {
 
 function renderGallery() {
   if (!completedPokemonList.length) {
-    el.gallery.innerHTML = '<p class="small">Aucun dessin terminé pour le moment.</p>';
+    el.gallery.innerHTML = '<p class="small">Aucun dessin.</p>';
     return;
   }
 
@@ -336,7 +350,7 @@ function computeFresqueLayout(total, mode, value) {
 
 function renderFresque() {
   if (!completedPokemonList.length) {
-    el.fresqueInfo.textContent = "Aucun dessin terminé pour construire une fresque pour le moment.";
+    el.fresqueInfo.textContent = "Aucun dessin.";
     el.fresqueGrid.innerHTML = "";
     el.downloadFresqueBtn.disabled = true;
     return;
@@ -396,7 +410,7 @@ async function pickAndAssignPokemon(user, oldPokemonId = null) {
     if (tx.committed) selected = tx.snapshot.val();
   }
 
-  if (!selected) throw new Error("Conflit d'attribution, réessaie.");
+  if (!selected) throw new Error("Conflit. Réessaie.");
 
   const updates = {
     [`users/${user.id}/pokemonId`]: selected.id,
@@ -420,8 +434,9 @@ async function pickAndAssignPokemon(user, oldPokemonId = null) {
 }
 
 async function assignPokemon() {
+  if (!hasNickname()) throw new Error("Pseudo requis.");
   if (currentUser?.pokemonId && currentPokemon) {
-    showToast("Ton aventure est déjà en cours (ou terminée).", true);
+    showToast("Déjà un Pokémon en cours.", true);
     return;
   }
 
@@ -430,10 +445,11 @@ async function assignPokemon() {
   currentUser.status = "assigned";
   currentPokemon = selected;
   renderMyPokemon();
-  showToast(`Pokémon attribué: ${selected.name}`);
+  showToast(`Pokémon: ${selected.name}`);
 }
 
 async function rerollPokemon() {
+  if (!hasNickname()) throw new Error("Pseudo requis.");
   if (!currentPokemon || currentPokemon.status !== "assigned") throw new Error("Aucun Pokémon en cours.");
   const rerollsUsed = currentUser.rerollsUsed || 0;
   if (rerollsUsed >= 3) throw new Error("Limite de reroll atteinte.");
@@ -451,10 +467,11 @@ async function rerollPokemon() {
   currentUser.status = "assigned";
   currentPokemon = selected;
   renderMyPokemon();
-  showToast(`Reroll réussi: ${selected.name}`);
+  showToast(`Reroll: ${selected.name}`);
 }
 
 async function uploadDrawing(file) {
+  if (!hasNickname()) throw new Error("Pseudo requis.");
   if (!currentPokemon || currentPokemon.status !== "assigned") throw new Error("Aucun Pokémon en cours.");
   const imageData = await fileToDataUrl(file);
 
@@ -471,7 +488,7 @@ async function uploadDrawing(file) {
   currentPokemon.artistName = currentUser.displayName;
   currentUser.status = "completed";
   renderMyPokemon();
-  showToast("Dessin uploadé avec succès ! Tu peux recommencer une nouvelle aventure.");
+  showToast("Dessin envoyé.");
 }
 
 async function restartAdventure() {
@@ -491,14 +508,14 @@ async function restartAdventure() {
   currentUser.rerollsUsed = 0;
   currentPokemon = null;
   renderMyPokemon();
-  showToast("Aventure réinitialisée. Tu peux obtenir un nouveau Pokémon.");
+  showToast("Recommencé.");
 }
 
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error("Impossible de lire le fichier image."));
+    reader.onerror = () => reject(new Error("Fichier illisible."));
     reader.readAsDataURL(file);
   });
 }
@@ -539,7 +556,7 @@ function bindAdmin() {
       .sort((a, b) => a.id - b.id);
 
     if (!items.length) {
-      el.adminList.innerHTML = '<p class="small">Rien à modérer.</p>';
+      el.adminList.innerHTML = '<p class="small">Rien.</p>';
       return;
     }
 
@@ -547,12 +564,12 @@ function bindAdmin() {
       <div class="admin-row">
         <div>
           <strong>#${String(p.id).padStart(3, "0")} ${p.name}</strong>
-          <div class="small">Statut: ${p.status} ${p.userId ? `· User UID: ${p.userId}` : ""}</div>
+          <div class="small">Statut: ${p.status} ${p.userId ? `· UID: ${p.userId}` : ""}</div>
         </div>
         <div class="admin-actions">
-          ${p.status === "completed" ? `<button data-action="delete-drawing" data-id="${p.id}">Supprimer dessin</button>` : ""}
-          ${p.status === "assigned" ? `<button data-action="reset-inprogress" data-id="${p.id}">Reset en cours</button>` : ""}
-          <button data-action="force-available" data-id="${p.id}" class="ghost">Remettre dispo</button>
+          ${p.status === "completed" ? `<button data-action="delete-drawing" data-id="${p.id}">Supprimer</button>` : ""}
+          ${p.status === "assigned" ? `<button data-action="reset-inprogress" data-id="${p.id}">Reset</button>` : ""}
+          <button data-action="force-available" data-id="${p.id}" class="ghost">Disponible</button>
         </div>
       </div>
     `).join("");
@@ -604,7 +621,7 @@ async function loginWithGoogle() {
     ].includes(err?.code);
 
     if (needsRedirectFallback) {
-      showToast("Popup bloquée, redirection en cours...");
+      showToast("Popup bloquée. Redirection...");
       await signInWithRedirect(auth, googleProvider);
       return;
     }
@@ -614,7 +631,7 @@ async function loginWithGoogle() {
       return;
     }
 
-    showToast(err.message || "Connexion Google impossible.", true);
+    showToast(err.message || "Connexion impossible.", true);
   } finally {
     isAuthActionPending = false;
     setAuthBusy(false);
@@ -638,9 +655,9 @@ async function logout() {
 }
 
 async function updateNickname(newNickname) {
-  if (!currentUser?.id) throw new Error("Connecte-toi d'abord.");
+  if (!currentUser?.id) throw new Error("Connecte-toi.");
   const nickname = sanitizeNickname(newNickname);
-  if (!nickname) throw new Error("Le pseudo ne peut pas être vide.");
+  if (!nickname) throw new Error("Pseudo requis.");
 
   await update(ref(db, `users/${currentUser.id}`), {
     displayName: nickname,
@@ -649,11 +666,11 @@ async function updateNickname(newNickname) {
 
   currentUser.displayName = nickname;
   renderAuthState();
-  showToast("Pseudo mis à jour.");
+  showToast("Pseudo enregistré.");
 }
 
 async function downloadFresqueImage() {
-  if (!completedPokemonList.length) throw new Error("Aucune image à exporter.");
+  if (!completedPokemonList.length) throw new Error("Aucune image.");
 
   const mode = el.fresqueMode.value;
   const value = Number(el.fresqueValue.value || 1);
@@ -704,7 +721,7 @@ function bindEvents() {
     try {
       await updateNickname(el.nicknameInput.value);
     } catch (err) {
-      showToast(err.message || "Impossible de mettre à jour le pseudo.", true);
+      showToast(err.message || "Pseudo non enregistré.", true);
     }
   });
 
@@ -788,12 +805,12 @@ async function boot() {
       await syncCurrentPokemon();
     } catch (err) {
       logFirebaseError("auth-state", err);
-      showToast("Impossible de synchroniser le compte connecté.", true);
+      showToast("Sync compte impossible.", true);
     }
   });
 }
 
 boot().catch((err) => {
   logFirebaseError("boot", err);
-  showToast(err.message || "Erreur d'initialisation.", true);
+  showToast(err.message || "Erreur démarrage.", true);
 });
