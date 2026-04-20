@@ -11,10 +11,10 @@
     <header class="topbar shell">
       <div>
         <h1>Gooningmon</h1>
-        <p>Adopte un Pokémon, dessine-le et expose ta collection.</p>
+        <p>Choisis, dessine, envoie.</p>
       </div>
       <nav class="nav-tabs" aria-label="Navigation principale">
-        <button class="nav-tab" data-route="/" type="button">Accueil</button>
+        <button class="nav-tab" data-route="/" type="button">Compte</button>
         <button class="nav-tab" data-route="/galerie" type="button">Galerie</button>
         <button class="nav-tab" data-route="/fresque" type="button">Fresque</button>
       </nav>
@@ -24,11 +24,10 @@
       <section id="view-home" class="route-view">
         <div class="grid-home">
           <section id="authSection" class="card auth-card">
-            <h2>Connexion</h2>
-            <p class="small">Connecte-toi avec ton compte Google pour participer au défi.</p>
+            <h2>Compte</h2>
 
             <div id="authLoggedOut" class="auth-state">
-              <button id="googleLoginBtn" class="google-btn" type="button">Se connecter avec Google</button>
+              <button id="googleLoginBtn" class="google-btn" type="button">Connexion Google</button>
             </div>
 
             <div id="authLoggedIn" class="auth-state hidden">
@@ -40,13 +39,13 @@
                 </div>
               </div>
               <form id="nicknameForm" class="nickname-form">
-                <label for="nicknameInput" class="small">Pseudo public</label>
+                <label for="nicknameInput" class="small">Pseudo</label>
                 <div class="nickname-row">
-                  <input id="nicknameInput" type="text" maxlength="30" placeholder="Ton pseudo" required />
-                  <button id="nicknameBtn" type="submit" class="secondary">Changer</button>
+                  <input id="nicknameInput" type="text" maxlength="30" placeholder="Pseudo" required />
+                  <button id="nicknameBtn" type="submit" class="secondary">Enregistrer</button>
                 </div>
               </form>
-              <button id="logoutBtn" class="ghost" type="button">Se déconnecter</button>
+              <button id="logoutBtn" class="ghost" type="button">Déconnexion</button>
             </div>
 
             <p id="authStatus" class="small"></p>
@@ -54,35 +53,34 @@
 
           <section id="appSection" class="hidden stack">
             <div class="card hero-card">
-              <h2 id="welcomeText">Bienvenue</h2>
+              <h2 id="welcomeText">Compte</h2>
               <p id="statusText"></p>
             </div>
 
             <div class="grid-2">
               <section class="card">
                 <h2>Mon Pokémon</h2>
-                <div id="pokemonCard" class="pokemon-card muted">Aucun Pokémon attribué.</div>
+                <div id="pokemonCard" class="pokemon-card muted">Aucun Pokémon.</div>
                 <div class="action-row">
-                  <button id="assignBtn" type="button">Obtenir un Pokémon aléatoire</button>
+                  <button id="assignBtn" type="button">Obtenir un Pokémon</button>
                   <button id="rerollBtn" class="secondary" type="button">Reroll</button>
-                  <button id="restartBtn" class="ghost hidden" type="button">Recommencer une nouvelle aventure</button>
+                  <button id="restartBtn" class="ghost hidden" type="button">Recommencer</button>
                 </div>
                 <p id="rerollInfo" class="small"></p>
               </section>
 
               <section class="card">
-                <h2>Upload du dessin</h2>
+                <h2>Upload</h2>
                 <form id="uploadForm" class="form-stack">
                   <input id="drawingFile" type="file" accept="image/*" required />
-                  <button id="uploadBtn" type="submit">Envoyer mon dessin</button>
+                  <button id="uploadBtn" type="submit">Envoyer le dessin</button>
                 </form>
-                <p class="small">Quand le dessin est uploadé, le Pokémon passe en <strong>terminé</strong>.</p>
+                <p class="small">Upload = terminé.</p>
               </section>
             </div>
 
             <section id="adminSection" class="card hidden">
               <h2>Administration</h2>
-              <p class="small">Visible uniquement pour les comptes administrateurs autorisés.</p>
               <div id="adminList" class="admin-list"></div>
             </section>
           </section>
@@ -91,8 +89,7 @@
 
       <section id="view-galerie" class="route-view hidden">
         <section class="card">
-          <h2>Galerie publique</h2>
-          <p class="small">Historique des dessins terminés (le plus récent en premier).</p>
+          <h2>Galerie</h2>
           <div id="gallery" class="gallery"></div>
         </section>
       </section>
@@ -102,18 +99,17 @@
           <div class="fresque-head">
             <div>
               <h2>Fresque</h2>
-              <p class="small">Construis une grille dynamique avec tous les dessins terminés.</p>
             </div>
-            <button id="downloadFresqueBtn" class="secondary" type="button">Télécharger la fresque</button>
+            <button id="downloadFresqueBtn" class="secondary" type="button">Télécharger</button>
           </div>
 
           <form id="fresqueForm" class="fresque-controls">
             <label>
               Mode
               <select id="fresqueMode">
-                <option value="auto">Automatique (équilibré)</option>
-                <option value="columns">Colonnes fixes</option>
-                <option value="rows">Lignes fixes</option>
+                <option value="auto">Auto</option>
+                <option value="columns">Colonnes</option>
+                <option value="rows">Lignes</option>
               </select>
             </label>
             <label>
