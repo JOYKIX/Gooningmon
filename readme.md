@@ -1,10 +1,12 @@
 # Gooningmon
 
-Application web simple (HTML/CSS/JS) avec Firebase pour:
+Application web (HTML/CSS/JS + Firebase Realtime Database) :
 - Connexion Google.
 - Attribution aléatoire d'un Pokémon de la Gen 1.
-- Upload de dessin (stocké en base Realtime Database).
-- Galerie publique.
+- Reroll limité à 3.
+- Upload d'un dessin (stocké en base).
+- Galerie publique + page Fresque dynamique.
+- Navigation SPA (Accueil / Galerie / Fresque) via `history.pushState` compatible GitHub Pages (`/Gooningmon/...`).
 
 ## Configuration Firebase (important pour GitHub Pages)
 
@@ -16,18 +18,31 @@ Active **Google**.
 ### 2) Authentication > Settings > Authorized domains
 Ajoute au minimum:
 - `joykix.github.io`
-- `localhost` (pour les tests locaux)
-- `<project-id>.firebaseapp.com` (souvent ajouté automatiquement)
+- `localhost`
+- `<project-id>.firebaseapp.com`
 
 ### 3) Dans `app.js`
 Vérifie `firebaseConfig` (`apiKey`, `authDomain`, `projectId`, etc.).
 
 ### 4) Déploiement
-Publie le repo sur GitHub Pages sous le domaine `joykix.github.io` pour éviter l'erreur `auth/unauthorized-domain`.
+Publie sur GitHub Pages sous le domaine `joykix.github.io` pour éviter l'erreur `auth/unauthorized-domain`.
 
-## Améliorations de connexion Google incluses
+## Parcours utilisateur
 
-- Fallback popup → redirect si le popup est bloqué.
-- Message explicite si le domaine n'est pas autorisé.
-- Vérification du hostname attendu (`joykix.github.io`) avec feedback utilisateur.
-- `prompt: "select_account"` pour forcer le choix du compte Google.
+1. Connexion Google.
+2. Attribution d'un Pokémon.
+3. Upload du dessin => statut Pokémon `completed`.
+4. Bouton **"Recommencer une nouvelle aventure"** :
+   - remet l'utilisateur à l'état `idle`
+   - remet `rerollsUsed` à `0`
+   - retire l'association `pokemonId`
+   - **conserve** le dessin terminé dans la galerie/fresque.
+
+## Fresque
+
+- Source : tous les Pokémon `completed` avec image.
+- Modes :
+  - Automatique (grille équilibrée)
+  - Colonnes fixes
+  - Lignes fixes
+- Bonus : export PNG de la fresque depuis le navigateur.
