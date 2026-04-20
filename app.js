@@ -344,12 +344,13 @@ function renderFresque() {
 
   const mode = el.fresqueMode.value;
   const value = Number(el.fresqueValue.value || 1);
+  const fresquePokemonList = [...completedPokemonList].sort((a, b) => a.id - b.id);
   el.fresqueValue.disabled = mode === "auto";
 
-  const { cols, rows } = computeFresqueLayout(completedPokemonList.length, mode, value);
-  el.fresqueInfo.textContent = `${completedPokemonList.length} dessins · ${cols} colonnes × ${rows} lignes`;
+  const { cols, rows } = computeFresqueLayout(fresquePokemonList.length, mode, value);
+  el.fresqueInfo.textContent = `${fresquePokemonList.length} dessins · ${cols} colonnes × ${rows} lignes`;
   el.fresqueGrid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
-  el.fresqueGrid.innerHTML = completedPokemonList.map((p) => `
+  el.fresqueGrid.innerHTML = fresquePokemonList.map((p) => `
     <article class="fresque-cell">
       <img src="${p.imageUrl}" alt="${p.name}" loading="lazy" />
       <div class="fresque-meta">#${String(p.id).padStart(3, "0")} ${p.name}</div>
@@ -656,19 +657,20 @@ async function downloadFresqueImage() {
 
   const mode = el.fresqueMode.value;
   const value = Number(el.fresqueValue.value || 1);
-  const { cols } = computeFresqueLayout(completedPokemonList.length, mode, value);
+  const fresquePokemonList = [...completedPokemonList].sort((a, b) => a.id - b.id);
+  const { cols } = computeFresqueLayout(fresquePokemonList.length, mode, value);
 
   const cell = 220;
-  const rows = Math.ceil(completedPokemonList.length / cols);
+  const rows = Math.ceil(fresquePokemonList.length / cols);
   const canvas = document.createElement("canvas");
   canvas.width = cols * cell;
   canvas.height = rows * cell;
   const ctx = canvas.getContext("2d");
 
-  ctx.fillStyle = "#0a0f1f";
+  ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const tasks = completedPokemonList.map((pokemon, index) => new Promise((resolve) => {
+  const tasks = fresquePokemonList.map((pokemon, index) => new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
       const col = index % cols;
