@@ -34,6 +34,13 @@ const ADMIN_EMAILS = ["duveaubenoit@gmail.com"];
 const APP_HOSTNAME = window.location.hostname;
 const EXPECTED_HOSTNAME = "joykix.github.io";
 const IS_GITHUB_PAGES = APP_HOSTNAME.endsWith(".github.io");
+const REPO_BASE_PATH = "/Gooningmon";
+
+const ROUTES = {
+  "/": "view-home",
+  "/galerie": "view-galerie",
+  "/fresque": "view-fresque"
+};
 
 const ROUTES = {
   "/": "view-home",
@@ -138,10 +145,27 @@ function getSafeRoute(pathname) {
   return ROUTES[pathname] ? pathname : "/";
 }
 
+function getAppPathFromLocation() {
+  const currentPath = window.location.pathname || "/";
+  if (currentPath === REPO_BASE_PATH || currentPath.startsWith(`${REPO_BASE_PATH}/`)) {
+    const relative = currentPath.slice(REPO_BASE_PATH.length) || "/";
+    return relative.startsWith("/") ? relative : `/${relative}`;
+  }
+  return currentPath;
+}
+
+function toBrowserPath(routePath) {
+  if (IS_GITHUB_PAGES) {
+    return routePath === "/" ? `${REPO_BASE_PATH}/` : `${REPO_BASE_PATH}${routePath}`;
+  }
+  return routePath;
+}
+
 function navigateTo(pathname, pushState = true) {
   const safePath = getSafeRoute(pathname);
-  if (pushState && window.location.pathname !== safePath) {
-    window.history.pushState({}, "", safePath);
+  const browserPath = toBrowserPath(safePath);
+  if (pushState && window.location.pathname !== browserPath) {
+    window.history.pushState({}, "", browserPath);
   }
 
   el.pageContainer.classList.add("leaving");
@@ -156,8 +180,8 @@ function bindRouter() {
   el.navTabs.forEach((tab) => {
     tab.addEventListener("click", () => navigateTo(tab.dataset.route));
   });
-  window.addEventListener("popstate", () => navigateTo(window.location.pathname, false));
-  navigateTo(window.location.pathname, false);
+  window.addEventListener("popstate", () => navigateTo(getAppPathFromLocation(), false));
+  navigateTo(getAppPathFromLocation(), false);
 }
 
 async function ensurePokemonPool() {

@@ -6,7 +6,7 @@ Application web (HTML/CSS/JS + Firebase Realtime Database) :
 - Reroll limité à 3.
 - Upload d'un dessin (stocké en base).
 - Galerie publique + page Fresque dynamique.
-- Navigation SPA (Accueil / Galerie / Fresque) via `history.pushState`.
+- Navigation SPA (Accueil / Galerie / Fresque) via `history.pushState` compatible GitHub Pages (`/Gooningmon/...`).
 
 ## Configuration Firebase (important pour GitHub Pages)
 
