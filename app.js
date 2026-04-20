@@ -96,6 +96,7 @@ const el = {
   uploadFileInfo: document.getElementById("uploadFileInfo"),
   uploadState: document.getElementById("uploadState"),
   galleryProgress: document.getElementById("galleryProgress"),
+  galleryAuthorFilter: document.getElementById("galleryAuthorFilter"),
   gallery: document.getElementById("gallery"),
   fresqueGrid: document.getElementById("fresqueGrid"),
   fresqueInfo: document.getElementById("fresqueInfo"),
@@ -129,6 +130,10 @@ let activeGeneration = "gen1";
 let unbindPokemonFeed = null;
 let unbindAdminFeed = null;
 let isAdminListClickBound = false;
+const GALLERY_FILTER_ALL_VALUE = "__all__";
+const GALLERY_UNKNOWN_AUTHOR = "Pseudo inconnu";
+const GALLERY_FILTER_STORAGE_PREFIX = "gooningmon-gallery-author-filter:";
+let selectedGalleryAuthor = GALLERY_FILTER_ALL_VALUE;
 
 function normalizeUserPokemonEntry(entry, fallbackId = null) {
   if (!entry) return null;
@@ -203,6 +208,15 @@ function normalizePokemonName(value) {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
+}
+
+function escapeHtml(value = "") {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function hasNickname(user = currentUser) {
@@ -471,25 +485,101 @@ function renderGalleryProgress() {
   el.galleryProgress.textContent = `${done}/${total} (${percent}%)`;
 }
 
+function getGalleryAuthorName(pokemon) {
+  return sanitizeNickname(pokemon?.authorName) || GALLERY_UNKNOWN_AUTHOR;
+}
+
+function compareNames(a, b) {
+  return a.localeCompare(b, "fr", { sensitivity: "base", numeric: true });
+}
+
+function getUniqueGalleryAuthors(pokemonList = completedPokemonList) {
+  return [...new Set((pokemonList || []).map(getGalleryAuthorName))]
+    .sort(compareNames);
+}
+
+function getFilteredGalleryPokemon() {
+  if (selectedGalleryAuthor === GALLERY_FILTER_ALL_VALUE) return completedPokemonList;
+  return completedPokemonList.filter((pokemon) => getGalleryAuthorName(pokemon) === selectedGalleryAuthor);
+}
+
+function getGalleryFilterStorageKey() {
+  return `${GALLERY_FILTER_STORAGE_PREFIX}${activeGeneration}`;
+}
+
+function saveGalleryAuthorFilter() {
+  try {
+    sessionStorage.setItem(getGalleryFilterStorageKey(), selectedGalleryAuthor);
+  } catch (err) {
+    console.warn("[Gallery] Impossible de sauvegarder le filtre de pseudo.", err);
+  }
+}
+
+function loadGalleryAuthorFilter() {
+  try {
+    const stored = sessionStorage.getItem(getGalleryFilterStorageKey());
+    return stored || GALLERY_FILTER_ALL_VALUE;
+  } catch (err) {
+    return GALLERY_FILTER_ALL_VALUE;
+  }
+}
+
+function ensureValidGalleryFilter(availableAuthors = []) {
+  const available = new Set(availableAuthors);
+  if (selectedGalleryAuthor !== GALLERY_FILTER_ALL_VALUE && !available.has(selectedGalleryAuthor)) {
+    selectedGalleryAuthor = GALLERY_FILTER_ALL_VALUE;
+  }
+}
+
+function renderGalleryAuthorFilter() {
+  if (!el.galleryAuthorFilter) return;
+  const authorOptions = getUniqueGalleryAuthors();
+  ensureValidGalleryFilter(authorOptions);
+  el.galleryAuthorFilter.innerHTML = "";
+  const allOption = document.createElement("option");
+  allOption.value = GALLERY_FILTER_ALL_VALUE;
+  allOption.textContent = "Tous les pseudos";
+  el.galleryAuthorFilter.append(allOption);
+  authorOptions.forEach((author) => {
+    const option = document.createElement("option");
+    option.value = author;
+    option.textContent = author;
+    el.galleryAuthorFilter.append(option);
+  });
+  el.galleryAuthorFilter.value = selectedGalleryAuthor;
+  el.galleryAuthorFilter.disabled = authorOptions.length === 0;
+}
+
 function renderGallery() {
   renderGalleryProgress();
+  renderGalleryAuthorFilter();
+  const visiblePokemon = getFilteredGalleryPokemon();
+
   if (!completedPokemonList.length) {
     el.gallery.innerHTML = '<p class="small">Aucun dessin.</p>';
     return;
   }
 
-  el.gallery.innerHTML = completedPokemonList.map((p) => `
+  if (!visiblePokemon.length) {
+    el.gallery.innerHTML = '<p class="small">Aucun dessin pour ce pseudo.</p>';
+    return;
+  }
+
+  el.gallery.innerHTML = visiblePokemon.map((p) => {
+    const authorName = getGalleryAuthorName(p);
+    return `
     <article class="gallery-item">
       <img src="${p.imageUrl}" alt="Dessin de ${p.name}" loading="lazy" />
       <div class="gallery-meta">
         <strong class="gallery-title">#${String(p.id).padStart(3, "0")} ${p.name}</strong>
-        ${p.authorName ? `<div class="small gallery-author" title="Par ${p.authorName}">Par ${p.authorName}</div>` : ""}
+        <div class="small gallery-author" title="Par ${escapeHtml(authorName)}">Par ${escapeHtml(authorName)}</div>
         <button class="btn btn-secondary gallery-download-btn" type="button" data-id="${p.id}">
           Télécharger
         </button>
       </div>
     </article>
-  `).join("");
+  `;
+  }).join("");
 }
 
 function triggerDownloadFromBlob(blob, filename) {
@@ -969,6 +1059,7 @@ function fileToDataUrl(file) {
 
 function bindPokemonFeed() {
   if (unbindPokemonFeed) unbindPokemonFeed();
+  selectedGalleryAuthor = loadGalleryAuthorFilter();
   unbindPokemonFeed = onValue(ref(db, generationPokemonPath()), (snap) => {
     const allPokemon = snap.val() || {};
     Object.values(allPokemon).forEach((pokemon) => {
@@ -1539,6 +1630,11 @@ function bindEvents() {
     } finally {
       button.disabled = false;
     }
+  });
+  el.galleryAuthorFilter?.addEventListener("change", (e) => {
+    selectedGalleryAuthor = e.target.value || GALLERY_FILTER_ALL_VALUE;
+    saveGalleryAuthorFilter();
+    renderGallery();
   });
 
   el.fresqueForm.addEventListener("input", renderFresque);

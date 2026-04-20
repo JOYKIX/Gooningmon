@@ -391,6 +391,16 @@ button.ghost:hover {
   gap: 0.2rem;
 }
 
+.gallery-filter {
+  min-width: 220px;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.gallery-filter label {
+  font-weight: 600;
+}
+
 .gallery-progress {
   font-weight: 700;
 }
@@ -615,5 +625,10 @@ button.ghost:hover {
 
   .gallery-head {
     align-items: stretch;
+    flex-direction: column;
+  }
+
+  .gallery-filter {
+    min-width: 0;
   }
 }
