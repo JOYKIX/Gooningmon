@@ -69,6 +69,18 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   gap: .75rem;
   margin-bottom: .8rem;
 }
+.nickname-form {
+  display: grid;
+  gap: .45rem;
+  margin-bottom: .8rem;
+}
+.nickname-row {
+  display: flex;
+  gap: .5rem;
+}
+.nickname-row input {
+  flex: 1;
+}
 .auth-avatar {
   width: 50px;
   height: 50px;

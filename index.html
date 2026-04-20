@@ -3,12 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pokédraw Gen 1</title>
+    <title>Gooningmon</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <header class="topbar">
-      <h1>Pokédraw Gen 1</h1>
+      <h1>Gooningmon</h1>
       <p>Adopte un Pokémon, dessine-le, partage-le ✨</p>
     </header>
 
@@ -29,6 +29,13 @@
               <p id="authUserEmail" class="small"></p>
             </div>
           </div>
+          <form id="nicknameForm" class="nickname-form">
+            <label for="nicknameInput" class="small">Pseudo public</label>
+            <div class="nickname-row">
+              <input id="nicknameInput" type="text" maxlength="30" placeholder="Ton pseudo" required />
+              <button id="nicknameBtn" type="submit" class="secondary">Changer</button>
+            </div>
+          </form>
           <button id="logoutBtn" class="ghost" type="button">Se déconnecter</button>
         </div>
 
