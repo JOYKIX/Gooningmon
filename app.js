@@ -59,6 +59,7 @@ function generationUsersPath(generation = activeGeneration) {
 const POKEMON_151 = [
   "Bulbizarre", "Herbizarre", "Florizarre", "Salamèche", "Reptincel", "Dracaufeu", "Carapuce", "Carabaffe", "Tortank", "Chenipan", "Chrysacier", "Papilusion", "Aspicot", "Coconfort", "Dardargnan", "Roucool", "Roucoups", "Roucarnage", "Rattata", "Rattatac", "Piafabec", "Rapasdepic", "Abo", "Arbok", "Pikachu", "Raichu", "Sabelette", "Sablaireau", "Nidoran♀", "Nidorina", "Nidoqueen", "Nidoran♂", "Nidorino", "Nidoking", "Mélofée", "Mélodelfe", "Goupix", "Feunard", "Rondoudou", "Grodoudou", "Nosferapti", "Nosferalto", "Mystherbe", "Ortide", "Rafflesia", "Paras", "Parasect", "Mimitoss", "Aéromite", "Taupiqueur", "Triopikeur", "Miaouss", "Persian", "Psykokwak", "Akwakwak", "Férosinge", "Colossinge", "Caninos", "Arcanin", "Ptitard", "Têtarte", "Tartard", "Abra", "Kadabra", "Alakazam", "Machoc", "Machopeur", "Mackogneur", "Chétiflor", "Boustiflor", "Empiflor", "Tentacool", "Tentacruel", "Racaillou", "Gravalanch", "Grolem", "Ponyta", "Galopa", "Ramoloss", "Flagadoss", "Magnéti", "Magnéton", "Canarticho", "Doduo", "Dodrio", "Otaria", "Lamantine", "Tadmorv", "Grotadmorv", "Kokiyas", "Crustabri", "Fantominus", "Spectrum", "Ectoplasma", "Onix", "Soporifik", "Hypnomade", "Krabby", "Krabboss", "Voltorbe", "Électrode", "Noeunoeuf", "Noadkoko", "Osselait", "Ossatueur", "Kicklee", "Tygnon", "Excelangue", "Smogo", "Smogogo", "Rhinocorne", "Rhinoféros", "Leveinard", "Saquedeneu", "Kangourex", "Hypotrempe", "Hypocéan", "Poissirène", "Poissoroy", "Stari", "Staross", "M. Mime", "Insécateur", "Lippoutou", "Élektek", "Magmar", "Scarabrute", "Tauros", "Magicarpe", "Léviator", "Lokhlass", "Métamorph", "Évoli", "Aquali", "Voltali", "Pyroli", "Porygon", "Amonita", "Amonistar", "Kabuto", "Kabutops", "Ptéra", "Ronflex", "Artikodin", "Électhor", "Sulfura", "Minidraco", "Draco", "Dracolosse", "Mewtwo", "Mew"
 ];
+const MAX_REROLLS = 3;
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -379,8 +380,8 @@ function renderAuthState() {
 
 function renderMyPokemon() {
   const rerollsUsed = currentUser?.rerollsUsed || 0;
-  const rerollsLeft = Math.max(0, 3 - rerollsUsed);
-  el.rerollInfo.textContent = `Reroll: ${rerollsLeft}/3`;
+  const rerollsLeft = Math.max(0, MAX_REROLLS - rerollsUsed);
+  el.rerollInfo.textContent = `Reroll: ${rerollsLeft}/${MAX_REROLLS}`;
 
   if (currentUser && !hasNickname()) {
     el.pokemonCard.className = "pokemon-card muted";
@@ -416,7 +417,7 @@ function renderMyPokemon() {
   const isCompleted = currentPokemon.status === "completed";
 
   el.assignBtn.disabled = true;
-  el.rerollBtn.disabled = !isAssigned || rerollsUsed >= 3;
+  el.rerollBtn.disabled = !isAssigned || rerollsUsed >= MAX_REROLLS;
   el.uploadBtn.disabled = !isAssigned;
   el.uploadState.textContent = isAssigned ? "Prêt." : "Terminé.";
   el.restartBtn.classList.toggle("hidden", !isCompleted);
@@ -771,7 +772,7 @@ async function rerollPokemon() {
   if (!hasNickname()) throw new Error("Pseudo requis.");
   if (!currentPokemon || currentPokemon.status !== "assigned") throw new Error("Aucun Pokémon en cours.");
   const rerollsUsed = currentUser.rerollsUsed || 0;
-  if (rerollsUsed >= 3) throw new Error("Limite de reroll atteinte.");
+  if (rerollsUsed >= MAX_REROLLS) throw new Error("Limite de reroll atteinte.");
 
   const selected = await assignPokemonToUser({ user: currentUser, oldPokemonId: currentPokemon.id });
   const newCount = rerollsUsed + 1;
@@ -867,6 +868,24 @@ async function uploadDrawing(file) {
   if (!currentPokemon || currentPokemon.status !== "assigned") throw new Error("Aucun Pokémon en cours.");
   const imageData = await fileToDataUrl(file);
   const targetUserId = currentPokemon.userId || currentUser.id;
+  if (!targetUserId) throw new Error("Joueur introuvable.");
+  const now = Date.now();
+  const completionTx = await runTransaction(ref(db, `${generationPokemonPath()}/${currentPokemon.id}`), (pokemon) => {
+    if (!pokemon) return;
+    if (pokemon.status === "completed") return;
+    if (pokemon.status !== "assigned") return;
+    if (pokemon.userId && pokemon.userId !== targetUserId) return;
+    return {
+      ...pokemon,
+      status: "completed",
+      imageUrl: imageData,
+      completedAt: now
+    };
+  });
+  if (!completionTx.committed) {
+    throw new Error("Ce Pokémon est déjà terminé ou indisponible.");
+  }
+
   const targetUserSnap = await get(ref(db, `${generationUsersPath()}/${targetUserId}`));
   const targetUserData = targetUserSnap.exists() ? targetUserSnap.val() : {};
   const targetPokemonMap = normalizeUserPokemonMap(targetUserData?.pokemons);
@@ -875,23 +894,23 @@ async function uploadDrawing(file) {
     || sanitizeNickname(currentUser.displayName);
 
   await update(ref(db), {
-    [`${generationPokemonPath()}/${currentPokemon.id}/status`]: "completed",
-    [`${generationPokemonPath()}/${currentPokemon.id}/imageUrl`]: imageData,
     [`${generationPokemonPath()}/${currentPokemon.id}/authorName`]: authorName,
     [`${generationPokemonPath()}/${currentPokemon.id}/artistName`]: null,
-    [`${generationPokemonPath()}/${currentPokemon.id}/completedAt`]: Date.now(),
+    [`${generationPokemonPath()}/${currentPokemon.id}/completedAt`]: now,
     [`${generationUsersPath()}/${targetUserId}/pokemons/${currentPokemon.id}`]: {
       pokemonId: currentPokemon.id,
       status: "completed",
       image: imageData,
       authorName,
       assignedAt: targetPokemonMap[currentPokemon.id]?.assignedAt || currentPokemon.assignedAt || null,
-      completedAt: Date.now(),
-      updatedAt: Date.now()
+      completedAt: now,
+      updatedAt: now
     },
     [`${generationUsersPath()}/${targetUserId}/activePokemonId`]: null,
     [`${generationUsersPath()}/${targetUserId}/pokemonId`]: null,
-    [`${generationUsersPath()}/${targetUserId}/status`]: "idle"
+    [`${generationUsersPath()}/${targetUserId}/status`]: "idle",
+    [`${generationUsersPath()}/${targetUserId}/rerollsUsed`]: 0,
+    [`${generationUsersPath()}/${targetUserId}/updatedAt`]: now
   });
 
   if (targetUserId === currentUser.id) {
@@ -903,13 +922,14 @@ async function uploadDrawing(file) {
         image: imageData,
         authorName,
         assignedAt: currentPokemon.assignedAt || null,
-        completedAt: Date.now(),
-        updatedAt: Date.now()
+        completedAt: now,
+        updatedAt: now
       }
     };
     currentUser.activePokemonId = null;
     currentUser.pokemonId = null;
     currentUser.status = "idle";
+    currentUser.rerollsUsed = 0;
   } else {
     await syncCurrentUser();
   }
