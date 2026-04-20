@@ -1,0 +1,30 @@
+{
+  "rules": {
+    ".read": true,
+    ".write": true,
+    "users": {
+      ".indexOn": ["usernameNorm"],
+      "$userId": {
+        ".validate": "newData.hasChildren(['username', 'usernameNorm', 'passwordHash', 'role'])",
+        "username": {
+          ".validate": "newData.isString() && newData.val().length >= 3 && newData.val().length <= 20"
+        },
+        "usernameNorm": {
+          ".validate": "newData.isString() && newData.val().length >= 3 && newData.val().length <= 20"
+        },
+        "passwordHash": {
+          ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{64}$/)"
+        },
+        "role": {
+          ".validate": "newData.isString() && (newData.val() === 'admin' || newData.val() === 'user')"
+        }
+      }
+    },
+    "pokemon": {
+      ".indexOn": ["status", "userId", "completedAt"]
+    },
+    "usernameIndex": {
+      ".indexOn": [".value"]
+    }
+  }
+}
