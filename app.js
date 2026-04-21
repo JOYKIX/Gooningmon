@@ -666,6 +666,13 @@ function getFresqueMetaPartsWithOptions(pokemon, displayOptions) {
   return parts;
 }
 
+function getFresqueMetaSingleLineWithOptions(pokemon, displayOptions) {
+  return getFresqueMetaPartsWithOptions(pokemon, displayOptions)
+    .map((part) => part.value)
+    .filter(Boolean)
+    .join(" · ");
+}
+
 function renderFresque() {
   if (!completedPokemonList.length) {
     el.fresqueInfo.textContent = "Aucun dessin.";
@@ -691,8 +698,8 @@ function renderFresque() {
   const safeHeight = Math.max(100, heightPx);
   const estimatedCellWidth = isDimensionsMode ? Math.max(1, safeWidth / Math.max(1, cols)) : 220;
   const estimatedCellHeight = isDimensionsMode ? Math.max(1, safeHeight / Math.max(1, rows)) : estimatedCellWidth;
-  const baseFontPx = Math.max(10, Math.min(22, Math.round(Math.min(estimatedCellWidth, estimatedCellHeight) * 0.115)));
-  const metaLineHeight = Math.max(1.1, Math.min(1.45, Number((baseFontPx / 12).toFixed(2))));
+  const baseFontPx = Math.max(9, Math.min(14, Math.round(Math.min(estimatedCellWidth, estimatedCellHeight) * 0.07)));
+  const metaLineHeight = Math.max(1.05, Math.min(1.25, Number((baseFontPx / 12).toFixed(2))));
   el.fresqueGrid.style.setProperty("--fresque-meta-font-size", `${baseFontPx}px`);
   el.fresqueGrid.style.setProperty("--fresque-meta-line-height", String(metaLineHeight));
   if (isDimensionsMode) {
@@ -708,9 +715,9 @@ function renderFresque() {
   el.fresqueGrid.innerHTML = fresquePokemonList.map((p) => `
     <article class="fresque-cell">
       <img src="${p.imageUrl}" alt="${p.name}" loading="lazy" />
-      <div class="fresque-meta">${getFresqueMetaPartsWithOptions(p, displayOptions)
-        .map((part) => `<span class="fresque-meta-line fresque-meta-${part.type}">${escapeHtml(part.value)}</span>`)
-        .join("")}</div>
+      <div class="fresque-meta">
+        <span class="fresque-meta-line">${escapeHtml(getFresqueMetaSingleLineWithOptions(p, displayOptions))}</span>
+      </div>
     </article>
   `).join("");
   el.downloadFresqueBtn.disabled = false;
@@ -1292,8 +1299,7 @@ async function downloadFresqueImage() {
   const exportHeightByGrid = imageSize * rows;
   const exportHeight = mode === "dimensions" ? heightPx : exportHeightByGrid;
   const cellHeight = Math.max(1, exportHeight / rows);
-  const baseFontPx = Math.max(10, Math.min(22, Math.round(Math.min(imageSize, cellHeight) * 0.115)));
-  const rowSpacingPx = Math.max(2, Math.round(baseFontPx * 0.25));
+  const baseFontPx = Math.max(8, Math.min(14, Math.round(Math.min(imageSize, cellHeight) * 0.065)));
   const showMeta = displayOptions.number || displayOptions.name || displayOptions.pseudo;
   const canvas = document.createElement("canvas");
   canvas.width = exportWidth;
@@ -1327,35 +1333,33 @@ async function downloadFresqueImage() {
       }
 
       let imageAreaHeight = drawHeight;
-      let textLines = [];
-      let lineHeightPx = Math.round(baseFontPx * 1.12);
-      let textBlockHeight = 0;
-      const textPaddingBottom = Math.max(4, Math.round(baseFontPx * 0.45));
-      const textPaddingTop = Math.max(3, Math.round(baseFontPx * 0.3));
-      const textPaddingX = 7;
+      let metaText = "";
+      const lineHeightPx = Math.round(baseFontPx * 1.12);
+      const textPaddingBottom = Math.max(3, Math.round(baseFontPx * 0.35));
+      const textPaddingTop = Math.max(2, Math.round(baseFontPx * 0.25));
+      const textPaddingX = 8;
       if (showMeta) {
-        const metaParts = getFresqueMetaPartsWithOptions(pokemon, displayOptions).slice(0, 3);
         const maxTextWidth = Math.max(8, drawWidth - (textPaddingX * 2));
-        textLines = metaParts.map((part) => truncateCanvasText(part.value, maxTextWidth)).filter(Boolean);
-        if (textLines.length) {
-          textBlockHeight = (textLines.length * lineHeightPx) + ((textLines.length - 1) * rowSpacingPx) + textPaddingTop + textPaddingBottom;
-          const maxReserved = drawHeight * 0.45;
-          textBlockHeight = Math.min(textBlockHeight, maxReserved);
-          imageAreaHeight = Math.max(10, drawHeight - textBlockHeight);
+        metaText = truncateCanvasText(
+          getFresqueMetaSingleLineWithOptions(pokemon, displayOptions),
+          maxTextWidth
+        );
+        if (metaText) {
+          const textBlockHeight = lineHeightPx + textPaddingTop + textPaddingBottom;
+          const maxReserved = drawHeight * 0.2;
+          imageAreaHeight = Math.max(10, drawHeight - Math.min(textBlockHeight, maxReserved));
         }
       }
 
       ctx.drawImage(img, x, y, drawWidth, imageAreaHeight);
 
-      if (textLines.length) {
+      if (metaText) {
         ctx.fillStyle = "#000000";
         ctx.font = `800 ${baseFontPx}px "Nunito", "Trebuchet MS", "Inter", Arial, sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "alphabetic";
-        const textStartY = y + imageAreaHeight + textPaddingTop + lineHeightPx;
-        textLines.forEach((line, lineIndex) => {
-          ctx.fillText(line, x + (drawWidth / 2), textStartY + (lineIndex * (lineHeightPx + rowSpacingPx)));
-        });
+        const textY = y + imageAreaHeight + textPaddingTop + lineHeightPx;
+        ctx.fillText(metaText, x + (drawWidth / 2), textY);
       }
       resolve();
     };

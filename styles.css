@@ -470,10 +470,9 @@ button.ghost:hover {
   color: #000000;
   text-align: center;
   font-family: "Nunito", "Trebuchet MS", "Inter", Arial, sans-serif;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.01em;
-  display: grid;
-  gap: 0.08em;
+  display: block;
 }
 
 .fresque-meta-line {
@@ -481,14 +480,6 @@ button.ghost:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.fresque-meta-number {
-  color: #000000;
-}
-
-.fresque-meta-pseudo {
-  color: #000000;
 }
 
 .fresque-card {
