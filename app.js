@@ -652,16 +652,25 @@ function getCurrentFresqueDisplayOptions() {
   };
 }
 
-function getFresqueMetaTextWithOptions(pokemon, displayOptions) {
-  const number = `#${String(pokemon.id).padStart(3, "0")}`;
+function getFresqueMetaPartsWithOptions(pokemon, displayOptions) {
   const parts = [];
-  if (displayOptions.number) parts.push(number);
-  if (displayOptions.name) parts.push(pokemon.name);
-  const left = parts.join(" ");
-  if (displayOptions.pseudo && pokemon.authorName) {
-    return left ? `${left} — ${pokemon.authorName}` : pokemon.authorName;
+  if (displayOptions.number) {
+    parts.push({ type: "number", value: `#${String(pokemon.id).padStart(3, "0")}` });
   }
-  return left;
+  if (displayOptions.name) {
+    parts.push({ type: "name", value: pokemon.name });
+  }
+  if (displayOptions.pseudo && pokemon.authorName) {
+    parts.push({ type: "pseudo", value: pokemon.authorName });
+  }
+  return parts;
+}
+
+function getFresqueMetaSingleLineWithOptions(pokemon, displayOptions) {
+  return getFresqueMetaPartsWithOptions(pokemon, displayOptions)
+    .map((part) => part.value)
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function renderFresque() {
@@ -685,9 +694,17 @@ function renderFresque() {
   el.fresqueHeight.disabled = !isDimensionsMode;
 
   const { cols, rows } = computeFresqueLayout(fresquePokemonList.length, mode, value, widthPx, heightPx);
+  const safeWidth = Math.max(100, widthPx);
+  const safeHeight = Math.max(100, heightPx);
+  const estimatedCellWidth = isDimensionsMode ? Math.max(1, safeWidth / Math.max(1, cols)) : 220;
+  const estimatedCellHeight = isDimensionsMode ? Math.max(1, safeHeight / Math.max(1, rows)) : estimatedCellWidth;
+  const baseFontPx = Math.max(9, Math.min(14, Math.round(Math.min(estimatedCellWidth, estimatedCellHeight) * 0.07)));
+  const metaLineHeight = Math.max(1.05, Math.min(1.25, Number((baseFontPx / 12).toFixed(2))));
+  el.fresqueGrid.style.setProperty("--fresque-meta-font-size", `${baseFontPx}px`);
+  el.fresqueGrid.style.setProperty("--fresque-meta-line-height", String(metaLineHeight));
   if (isDimensionsMode) {
-    el.fresqueInfo.textContent = `${fresquePokemonList.length} dessins · ${cols} colonnes × ${rows} lignes · ${Math.max(100, widthPx)} × ${Math.max(100, heightPx)} px`;
-    el.fresqueGrid.style.width = `${Math.max(100, widthPx)}px`;
+    el.fresqueInfo.textContent = `${fresquePokemonList.length} dessins · ${cols} colonnes × ${rows} lignes · ${safeWidth} × ${safeHeight} px`;
+    el.fresqueGrid.style.width = `${safeWidth}px`;
     el.fresqueGrid.style.maxWidth = "100%";
   } else {
     el.fresqueInfo.textContent = `${fresquePokemonList.length} dessins · ${cols} colonnes × ${rows} lignes`;
@@ -698,7 +715,9 @@ function renderFresque() {
   el.fresqueGrid.innerHTML = fresquePokemonList.map((p) => `
     <article class="fresque-cell">
       <img src="${p.imageUrl}" alt="${p.name}" loading="lazy" />
-      <div class="fresque-meta">${getFresqueMetaTextWithOptions(p, displayOptions)}</div>
+      <div class="fresque-meta">
+        <span class="fresque-meta-line">${escapeHtml(getFresqueMetaSingleLineWithOptions(p, displayOptions))}</span>
+      </div>
     </article>
   `).join("");
   el.downloadFresqueBtn.disabled = false;
@@ -1280,6 +1299,7 @@ async function downloadFresqueImage() {
   const exportHeightByGrid = imageSize * rows;
   const exportHeight = mode === "dimensions" ? heightPx : exportHeightByGrid;
   const cellHeight = Math.max(1, exportHeight / rows);
+  const baseFontPx = Math.max(8, Math.min(14, Math.round(Math.min(imageSize, cellHeight) * 0.065)));
   const showMeta = displayOptions.number || displayOptions.name || displayOptions.pseudo;
   const canvas = document.createElement("canvas");
   canvas.width = exportWidth;
@@ -1311,19 +1331,35 @@ async function downloadFresqueImage() {
         resolve();
         return;
       }
-      ctx.drawImage(img, x, y, drawWidth, drawHeight);
 
+      let imageAreaHeight = drawHeight;
+      let metaText = "";
+      const lineHeightPx = Math.round(baseFontPx * 1.12);
+      const textPaddingBottom = Math.max(3, Math.round(baseFontPx * 0.35));
+      const textPaddingTop = Math.max(2, Math.round(baseFontPx * 0.25));
+      const textPaddingX = 8;
       if (showMeta) {
-        const metaText = getFresqueMetaTextWithOptions(pokemon, displayOptions);
+        const maxTextWidth = Math.max(8, drawWidth - (textPaddingX * 2));
+        metaText = truncateCanvasText(
+          getFresqueMetaSingleLineWithOptions(pokemon, displayOptions),
+          maxTextWidth
+        );
         if (metaText) {
-          ctx.fillStyle = "#4f4f4f";
-          ctx.font = "12px Inter, Arial, sans-serif";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          const safeText = truncateCanvasText(metaText, drawWidth - 14);
-          const textY = y + drawHeight - 10;
-          ctx.fillText(safeText, x + (drawWidth / 2), Math.max(y + 12, textY));
+          const textBlockHeight = lineHeightPx + textPaddingTop + textPaddingBottom;
+          const maxReserved = drawHeight * 0.2;
+          imageAreaHeight = Math.max(10, drawHeight - Math.min(textBlockHeight, maxReserved));
         }
+      }
+
+      ctx.drawImage(img, x, y, drawWidth, imageAreaHeight);
+
+      if (metaText) {
+        ctx.fillStyle = "#000000";
+        ctx.font = `800 ${baseFontPx}px "Nunito", "Trebuchet MS", "Inter", Arial, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "alphabetic";
+        const textY = y + imageAreaHeight + textPaddingTop + lineHeightPx;
+        ctx.fillText(metaText, x + (drawWidth / 2), textY);
       }
       resolve();
     };

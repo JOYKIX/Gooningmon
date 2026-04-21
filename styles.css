@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap");
+
 :root {
   --red: #d31223;
   --red-dark: #a60017;
@@ -463,9 +465,21 @@ button.ghost:hover {
 }
 
 .fresque-meta {
-  font-size: 0.82rem;
-  color: #d5d5d5;
+  font-size: var(--fresque-meta-font-size, 13px);
+  line-height: var(--fresque-meta-line-height, 1.25);
+  color: #000000;
   text-align: center;
+  font-family: "Nunito", "Trebuchet MS", "Inter", Arial, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  display: block;
+}
+
+.fresque-meta-line {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .fresque-card {
