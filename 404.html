@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gooningmon · SPA</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-decor" aria-hidden="true"></div>
+
+    <header class="topbar shell">
+      <div class="brand">
+        <h1>Gooningmon</h1>
+      </div>
+      <nav class="nav-tabs" aria-label="Navigation principale">
+        <button class="nav-tab" data-route="/" type="button">Accueil</button>
+        <button class="nav-tab" data-route="/galerie" type="button">Galerie</button>
+        <button class="nav-tab" data-route="/fresque" type="button">Fresque</button>
+      </nav>
+    </header>
+
+    <main class="container shell page-transition">
+      <section id="view-home" class="route-view">
+        <div class="grid-home">
+          <section id="authSection" class="card auth-card">
+            <h2>Compte</h2>
+
+            <div id="authLoggedOut" class="auth-state">
+              <button id="googleLoginBtn" class="btn btn-google" type="button">Connexion Google</button>
+            </div>
+
+            <div id="authLoggedIn" class="auth-state hidden">
+              <div class="auth-user">
+                <img id="authUserPhoto" class="auth-avatar hidden" alt="Avatar du compte" />
+                <div>
+                  <strong id="authUserName">Compte connecté</strong>
+                  <p id="authUserEmail" class="small"></p>
+                </div>
+              </div>
+
+              <form id="nicknameForm" class="nickname-form">
+                <label for="nicknameInput" class="small">Pseudo</label>
+                <div class="nickname-row">
+                  <input id="nicknameInput" type="text" maxlength="30" placeholder="Pseudo" required />
+                  <button id="nicknameBtn" type="submit" class="btn btn-secondary">Valider</button>
+                </div>
+              </form>
+
+              <button id="logoutBtn" class="btn btn-ghost" type="button">Logout</button>
+            </div>
+
+            <p id="authStatus" class="small"></p>
+          </section>
+
+          <section id="appSection" class="hidden stack">
+            <section class="card hero-card">
+              <h2 id="welcomeText">Compte</h2>
+              <p id="statusText"></p>
+            </section>
+
+            <div class="grid-2">
+              <section class="card pokemon-section">
+                <h2>Mon Pokémon</h2>
+                <div id="pokemonCard" class="pokemon-card muted">Aucun Pokémon.</div>
+                <div class="action-row">
+                  <button id="assignBtn" type="button" class="btn">Aléatoire</button>
+                  <button id="rerollBtn" class="btn btn-secondary" type="button">Reroll</button>
+                  <button id="restartBtn" class="btn btn-ghost hidden" type="button">Recommencer</button>
+                </div>
+                <p id="rerollInfo" class="small"></p>
+              </section>
+
+              <section class="card upload-card">
+                <h2>Upload</h2>
+                <form id="uploadForm" class="form-stack">
+                  <label for="drawingFile" class="file-trigger">Choisir un fichier</label>
+                  <input id="drawingFile" class="file-input" type="file" accept="image/*" required />
+                  <p class="small">Image 500 x 500 px</p>
+                  <p id="uploadFileInfo" class="small">Aucun fichier.</p>
+                  <button id="uploadBtn" type="submit" class="btn">Envoyer</button>
+                </form>
+                <p id="uploadState" class="small">Prêt.</p>
+              </section>
+            </div>
+
+            <section id="adminSection" class="card hidden">
+              <h2>Admin</h2>
+              <div class="admin-tools">
+                <button id="downloadGenerationZipBtn" class="btn" type="button">Télécharger ZIP</button>
+                <div class="admin-zip-import">
+                  <input id="importGenerationZipInput" type="file" accept=".zip,application/zip" class="hidden" />
+                  <button id="importGenerationZipBtn" class="btn btn-secondary" type="button">Importer ZIP</button>
+                </div>
+                <form id="adminAssignForm" class="admin-assign-form">
+                  <label for="adminAssignNumber">Numéro</label>
+                  <input id="adminAssignNumber" type="text" inputmode="numeric" maxlength="3" />
+                  <label for="adminAssignName">Nom</label>
+                  <input id="adminAssignName" type="text" maxlength="30" />
+                  <label for="adminAssignPseudo">Pseudo</label>
+                  <input id="adminAssignPseudo" type="text" maxlength="30" />
+                  <button id="adminAssignBtn" type="submit" class="btn">Attribuer</button>
+                </form>
+                <div class="admin-generation-row">
+                  <select id="generationSelect">
+                    <option value="gen1">Gen 1</option>
+                    <option value="gen2">Gen 2</option>
+                    <option value="gen3">Gen 3</option>
+                    <option value="gen4">Gen 4</option>
+                    <option value="gen5">Gen 5</option>
+                    <option value="gen6">Gen 6</option>
+                    <option value="gen7">Gen 7</option>
+                    <option value="gen8">Gen 8</option>
+                    <option value="gen9">Gen 9</option>
+                  </select>
+                  <button id="changeGenerationBtn" class="btn btn-secondary" type="button">Changer</button>
+                </div>
+              </div>
+              <div id="adminList" class="admin-list"></div>
+            </section>
+          </section>
+        </div>
+      </section>
+
+      <section id="view-galerie" class="route-view hidden">
+        <section class="card">
+          <div class="gallery-head">
+            <div class="gallery-head-main">
+              <h2>Galerie</h2>
+              <p id="galleryProgress" class="small gallery-progress">0/151 (0%)</p>
+            </div>
+            <div class="gallery-filter">
+              <label for="galleryAuthorFilter" class="small">Filtrer par pseudo</label>
+              <select id="galleryAuthorFilter" aria-label="Filtrer par pseudo">
+                <option value="__all__">Tous les pseudos</option>
+              </select>
+            </div>
+          </div>
+          <div id="gallery" class="gallery"></div>
+        </section>
+      </section>
+
+      <section id="view-fresque" class="route-view hidden">
+        <section class="card fresque-card">
+          <div class="fresque-head">
+            <h2>Fresque</h2>
+            <button id="downloadFresqueBtn" class="btn btn-secondary" type="button">Télécharger</button>
+          </div>
+
+          <form id="fresqueForm" class="fresque-controls">
+            <label>
+              Mode
+              <select id="fresqueMode">
+                <option value="auto">Auto</option>
+                <option value="columns">Colonnes</option>
+                <option value="rows">Lignes</option>
+              </select>
+            </label>
+            <label>
+              Valeur
+              <input id="fresqueValue" type="number" min="1" value="5" />
+            </label>
+          </form>
+
+          <div id="fresqueInfoToggles" class="fresque-info-toggles">
+            <label class="check-pill" for="fresqueShowNumber">
+              <input id="fresqueShowNumber" type="checkbox" checked />
+              <span class="check-ui" aria-hidden="true"></span>
+              <span>Numéro</span>
+            </label>
+            <label class="check-pill" for="fresqueShowName">
+              <input id="fresqueShowName" type="checkbox" checked />
+              <span class="check-ui" aria-hidden="true"></span>
+              <span>Nom</span>
+            </label>
+            <label class="check-pill" for="fresqueShowPseudo">
+              <input id="fresqueShowPseudo" type="checkbox" checked />
+              <span class="check-ui" aria-hidden="true"></span>
+              <span>Pseudo</span>
+            </label>
+          </div>
+
+          <p id="fresqueInfo" class="small"></p>
+          <div id="fresqueGrid" class="fresque-grid"></div>
+        </section>
+      </section>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
