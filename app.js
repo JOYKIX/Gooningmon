@@ -1293,7 +1293,7 @@ async function downloadFresqueImage() {
   const exportHeight = mode === "dimensions" ? heightPx : exportHeightByGrid;
   const cellHeight = Math.max(1, exportHeight / rows);
   const baseFontPx = Math.max(10, Math.min(22, Math.round(Math.min(imageSize, cellHeight) * 0.115)));
-  const rowSpacingPx = Math.max(2, Math.round(baseFontPx * 0.35));
+  const rowSpacingPx = Math.max(2, Math.round(baseFontPx * 0.25));
   const showMeta = displayOptions.number || displayOptions.name || displayOptions.pseudo;
   const canvas = document.createElement("canvas");
   canvas.width = exportWidth;
@@ -1325,28 +1325,37 @@ async function downloadFresqueImage() {
         resolve();
         return;
       }
-      ctx.drawImage(img, x, y, drawWidth, drawHeight);
 
+      let imageAreaHeight = drawHeight;
+      let textLines = [];
+      let lineHeightPx = Math.round(baseFontPx * 1.12);
+      let textBlockHeight = 0;
+      const textPaddingBottom = Math.max(4, Math.round(baseFontPx * 0.45));
+      const textPaddingTop = Math.max(3, Math.round(baseFontPx * 0.3));
+      const textPaddingX = 7;
       if (showMeta) {
         const metaParts = getFresqueMetaPartsWithOptions(pokemon, displayOptions).slice(0, 3);
-        if (metaParts.length) {
-          const maxTextWidth = Math.max(8, drawWidth - 14);
-          const lines = metaParts.map((part) => truncateCanvasText(part.value, maxTextWidth)).filter(Boolean);
-          if (lines.length) {
-            ctx.fillStyle = "#4f4f4f";
-            ctx.font = `800 ${baseFontPx}px "Nunito", "Trebuchet MS", "Inter", Arial, sans-serif`;
-            ctx.textAlign = "center";
-            ctx.textBaseline = "alphabetic";
-            const lineHeightPx = Math.round(baseFontPx * 1.15);
-            const blockHeight = (lines.length * lineHeightPx) + ((lines.length - 1) * rowSpacingPx);
-            const blockBottom = y + drawHeight - 8;
-            const minBaseline = y + baseFontPx + 5;
-            let baseline = Math.max(minBaseline, blockBottom - blockHeight + lineHeightPx);
-            lines.forEach((line, lineIndex) => {
-              ctx.fillText(line, x + (drawWidth / 2), baseline + (lineIndex * (lineHeightPx + rowSpacingPx)));
-            });
-          }
+        const maxTextWidth = Math.max(8, drawWidth - (textPaddingX * 2));
+        textLines = metaParts.map((part) => truncateCanvasText(part.value, maxTextWidth)).filter(Boolean);
+        if (textLines.length) {
+          textBlockHeight = (textLines.length * lineHeightPx) + ((textLines.length - 1) * rowSpacingPx) + textPaddingTop + textPaddingBottom;
+          const maxReserved = drawHeight * 0.45;
+          textBlockHeight = Math.min(textBlockHeight, maxReserved);
+          imageAreaHeight = Math.max(10, drawHeight - textBlockHeight);
         }
+      }
+
+      ctx.drawImage(img, x, y, drawWidth, imageAreaHeight);
+
+      if (textLines.length) {
+        ctx.fillStyle = "#000000";
+        ctx.font = `800 ${baseFontPx}px "Nunito", "Trebuchet MS", "Inter", Arial, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "alphabetic";
+        const textStartY = y + imageAreaHeight + textPaddingTop + lineHeightPx;
+        textLines.forEach((line, lineIndex) => {
+          ctx.fillText(line, x + (drawWidth / 2), textStartY + (lineIndex * (lineHeightPx + rowSpacingPx)));
+        });
       }
       resolve();
     };

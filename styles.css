@@ -467,7 +467,7 @@ button.ghost:hover {
 .fresque-meta {
   font-size: var(--fresque-meta-font-size, 13px);
   line-height: var(--fresque-meta-line-height, 1.25);
-  color: #ececec;
+  color: #000000;
   text-align: center;
   font-family: "Nunito", "Trebuchet MS", "Inter", Arial, sans-serif;
   font-weight: 800;
@@ -484,11 +484,11 @@ button.ghost:hover {
 }
 
 .fresque-meta-number {
-  color: #ffffff;
+  color: #000000;
 }
 
 .fresque-meta-pseudo {
-  color: #ffb6c1;
+  color: #000000;
 }
 
 .fresque-card {
