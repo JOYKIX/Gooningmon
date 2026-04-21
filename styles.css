@@ -378,6 +378,11 @@ button.ghost:hover {
   gap: 0.85rem;
 }
 
+.fresque-grid {
+  width: 100%;
+  overflow: auto;
+}
+
 .gallery-head {
   display: flex;
   justify-content: space-between;
