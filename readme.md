@@ -46,3 +46,7 @@ Publie sur GitHub Pages sous le domaine `joykix.github.io` pour éviter l'erreur
   - Colonnes fixes
   - Lignes fixes
 - Bonus : export PNG de la fresque depuis le navigateur.
+
+## Routage GitHub Pages (SPA)
+
+Le fichier `404.html` doit être présent (copie de `index.html`) pour que le rechargement direct de `/galerie` ou `/fresque` fonctionne sur GitHub Pages.
