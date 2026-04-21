@@ -102,6 +102,8 @@ const el = {
   fresqueInfo: document.getElementById("fresqueInfo"),
   fresqueMode: document.getElementById("fresqueMode"),
   fresqueValue: document.getElementById("fresqueValue"),
+  fresqueWidth: document.getElementById("fresqueWidth"),
+  fresqueHeight: document.getElementById("fresqueHeight"),
   fresqueForm: document.getElementById("fresqueForm"),
   fresqueShowNumber: document.getElementById("fresqueShowNumber"),
   fresqueShowName: document.getElementById("fresqueShowName"),
@@ -620,7 +622,7 @@ async function downloadPokemonImage(pokemonId) {
   }
 }
 
-function computeFresqueLayout(total, mode, value) {
+function computeFresqueLayout(total, mode, value, widthPx = 0, heightPx = 0) {
   if (!total) return { cols: 0, rows: 0 };
   if (mode === "columns") {
     const cols = Math.max(1, value);
@@ -629,6 +631,13 @@ function computeFresqueLayout(total, mode, value) {
   if (mode === "rows") {
     const rows = Math.max(1, value);
     return { rows, cols: Math.ceil(total / rows) };
+  }
+  if (mode === "dimensions") {
+    const safeWidth = Math.max(100, widthPx || 100);
+    const safeHeight = Math.max(100, heightPx || 100);
+    const ratio = safeWidth / safeHeight;
+    const cols = Math.max(1, Math.ceil(Math.sqrt(total * ratio)));
+    return { cols, rows: Math.ceil(total / cols) };
   }
 
   const cols = Math.max(1, Math.ceil(Math.sqrt(total)));
@@ -665,12 +674,26 @@ function renderFresque() {
 
   const mode = el.fresqueMode.value;
   const value = Number(el.fresqueValue.value || 1);
+  const widthPx = Number(el.fresqueWidth.value || 1920);
+  const heightPx = Number(el.fresqueHeight.value || 1080);
   const fresquePokemonList = [...completedPokemonList].sort((a, b) => a.id - b.id);
   const displayOptions = getCurrentFresqueDisplayOptions();
-  el.fresqueValue.disabled = mode === "auto";
+  const isAutoMode = mode === "auto";
+  const isDimensionsMode = mode === "dimensions";
+  el.fresqueValue.disabled = isAutoMode || isDimensionsMode;
+  el.fresqueWidth.disabled = !isDimensionsMode;
+  el.fresqueHeight.disabled = !isDimensionsMode;
 
-  const { cols, rows } = computeFresqueLayout(fresquePokemonList.length, mode, value);
-  el.fresqueInfo.textContent = `${fresquePokemonList.length} dessins · ${cols} colonnes × ${rows} lignes`;
+  const { cols, rows } = computeFresqueLayout(fresquePokemonList.length, mode, value, widthPx, heightPx);
+  if (isDimensionsMode) {
+    el.fresqueInfo.textContent = `${fresquePokemonList.length} dessins · ${cols} colonnes × ${rows} lignes · ${Math.max(100, widthPx)} × ${Math.max(100, heightPx)} px`;
+    el.fresqueGrid.style.width = `${Math.max(100, widthPx)}px`;
+    el.fresqueGrid.style.maxWidth = "100%";
+  } else {
+    el.fresqueInfo.textContent = `${fresquePokemonList.length} dessins · ${cols} colonnes × ${rows} lignes`;
+    el.fresqueGrid.style.width = "";
+    el.fresqueGrid.style.maxWidth = "";
+  }
   el.fresqueGrid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
   el.fresqueGrid.innerHTML = fresquePokemonList.map((p) => `
     <article class="fresque-cell">
@@ -1245,19 +1268,22 @@ async function downloadFresqueImage() {
 
   const mode = el.fresqueMode.value;
   const value = Number(el.fresqueValue.value || 1);
+  const widthPx = Math.max(100, Number(el.fresqueWidth.value || 1920));
+  const heightPx = Math.max(100, Number(el.fresqueHeight.value || 1080));
   const displayOptions = getCurrentFresqueDisplayOptions();
   const fresquePokemonList = [...completedPokemonList].sort((a, b) => a.id - b.id);
-  const { cols } = computeFresqueLayout(fresquePokemonList.length, mode, value);
+  const { cols } = computeFresqueLayout(fresquePokemonList.length, mode, value, widthPx, heightPx);
 
-  const imageSize = 220;
-  const showMeta = displayOptions.number || displayOptions.name || displayOptions.pseudo;
-  const metaGap = showMeta ? 8 : 0;
-  const metaHeight = showMeta ? 20 : 0;
-  const cellHeight = imageSize + metaGap + metaHeight;
+  const exportWidth = mode === "dimensions" ? widthPx : cols * 220;
   const rows = Math.ceil(fresquePokemonList.length / cols);
+  const imageSize = Math.max(10, Math.floor(exportWidth / cols));
+  const exportHeightByGrid = imageSize * rows;
+  const exportHeight = mode === "dimensions" ? heightPx : exportHeightByGrid;
+  const cellHeight = Math.max(1, exportHeight / rows);
+  const showMeta = displayOptions.number || displayOptions.name || displayOptions.pseudo;
   const canvas = document.createElement("canvas");
-  canvas.width = cols * imageSize;
-  canvas.height = rows * cellHeight;
+  canvas.width = exportWidth;
+  canvas.height = exportHeight;
   const ctx = canvas.getContext("2d");
 
   ctx.fillStyle = "#ffffff";
@@ -1279,7 +1305,13 @@ async function downloadFresqueImage() {
       const row = Math.floor(index / cols);
       const x = col * imageSize;
       const y = row * cellHeight;
-      ctx.drawImage(img, x, y, imageSize, imageSize);
+      const drawWidth = Math.min(imageSize, canvas.width - x);
+      const drawHeight = Math.min(cellHeight, canvas.height - y);
+      if (drawWidth <= 0 || drawHeight <= 0) {
+        resolve();
+        return;
+      }
+      ctx.drawImage(img, x, y, drawWidth, drawHeight);
 
       if (showMeta) {
         const metaText = getFresqueMetaTextWithOptions(pokemon, displayOptions);
@@ -1288,8 +1320,9 @@ async function downloadFresqueImage() {
           ctx.font = "12px Inter, Arial, sans-serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          const safeText = truncateCanvasText(metaText, imageSize - 14);
-          ctx.fillText(safeText, x + (imageSize / 2), y + imageSize + metaGap + (metaHeight / 2));
+          const safeText = truncateCanvasText(metaText, drawWidth - 14);
+          const textY = y + drawHeight - 10;
+          ctx.fillText(safeText, x + (drawWidth / 2), Math.max(y + 12, textY));
         }
       }
       resolve();
