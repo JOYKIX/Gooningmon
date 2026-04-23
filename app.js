@@ -344,6 +344,12 @@ function toBrowserPath(routePath) {
   return routePath;
 }
 
+function shouldResetRouteOnReload() {
+  const navEntries = window.performance?.getEntriesByType?.("navigation");
+  const navigationType = Array.isArray(navEntries) && navEntries.length ? navEntries[0].type : null;
+  return navigationType === "reload";
+}
+
 function navigateTo(pathname, pushState = true) {
   const safePath = getSafeRoute(pathname);
   const browserPath = toBrowserPath(safePath);
@@ -364,7 +370,9 @@ function bindRouter() {
     tab.addEventListener("click", () => navigateTo(tab.dataset.route));
   });
   window.addEventListener("popstate", () => navigateTo(getAppPathFromLocation(), false));
-  navigateTo(getAppPathFromLocation(), false);
+  const initialPath = getAppPathFromLocation();
+  const shouldForceHome = shouldResetRouteOnReload() && initialPath !== "/";
+  navigateTo(shouldForceHome ? "/" : initialPath, false);
 }
 
 function getDrawingPointerPosition(event) {
