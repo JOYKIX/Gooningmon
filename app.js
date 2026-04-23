@@ -130,10 +130,11 @@ const el = {
   fresquePresetButtons: document.querySelectorAll("[data-fresque-preset]"),
   fresqueTotalWidthBlocks: document.getElementById("fresqueTotalWidthBlocks"),
   fresqueTotalHeightBlocks: document.getElementById("fresqueTotalHeightBlocks"),
-  fresqueAddPanelBtn: document.getElementById("fresqueAddPanelBtn"),
+  fresqueGeneratePanelsBtn: document.getElementById("fresqueGeneratePanelsBtn"),
   fresquePanelsList: document.getElementById("fresquePanelsList"),
   fresquePanelsInfo: document.getElementById("fresquePanelsInfo"),
   fresqueExportPanelsBtn: document.getElementById("fresqueExportPanelsBtn"),
+  fresquePanelsPreview: document.getElementById("fresquePanelsPreview"),
   drawingCanvas: document.getElementById("drawingCanvas"),
   drawingColor: document.getElementById("drawingColor"),
   drawingBrushSize: document.getElementById("drawingBrushSize"),
@@ -211,11 +212,7 @@ const FRESQUE_PANEL_FILENAME_PREFIX = "mural-panel";
 let selectedGalleryAuthor = GALLERY_FILTER_ALL_VALUE;
 let gallerySearchQuery = "";
 let selectedGallerySort = "recent";
-let fresquePanels = [
-  { id: 1, widthBlocks: 6, heightBlocks: 5 },
-  { id: 2, widthBlocks: 5, heightBlocks: 5 }
-];
-let fresquePanelNextId = 3;
+let fresquePanels = [];
 
 function normalizeUserPokemonEntry(entry, fallbackId = null) {
   if (!entry) return null;
@@ -1284,63 +1281,126 @@ function blocksToPixels(blocks, blockSize = FRESQUE_BLOCK_SIZE) {
   return Math.max(0, Number(blocks) || 0) * blockSize;
 }
 
-function normalizePanel(panel, fallbackId) {
+function getPanelMapCount(panel) {
+  return Math.max(1, Number(panel?.widthBlocks) || 1) * Math.max(1, Number(panel?.heightBlocks) || 1);
+}
+
+function buildPanelWithPixels(panel) {
+  const widthBlocks = Math.max(1, Number(panel?.widthBlocks) || 1);
+  const heightBlocks = Math.max(1, Number(panel?.heightBlocks) || 1);
+  const xBlocks = Math.max(0, Number(panel?.xBlocks) || 0);
+  const yBlocks = Math.max(0, Number(panel?.yBlocks) || 0);
+  const id = Number(panel?.id) || 1;
   return {
-    id: Number(panel?.id) || fallbackId,
-    widthBlocks: Math.max(1, Number(panel?.widthBlocks) || 1),
-    heightBlocks: Math.max(1, Number(panel?.heightBlocks) || 1)
+    id,
+    xBlocks,
+    yBlocks,
+    widthBlocks,
+    heightBlocks,
+    xPx: blocksToPixels(xBlocks),
+    yPx: blocksToPixels(yBlocks),
+    widthPx: blocksToPixels(widthBlocks),
+    heightPx: blocksToPixels(heightBlocks),
+    mapsUsed: getPanelMapCount({ widthBlocks, heightBlocks })
   };
 }
 
-function computePanelLayout(panels = [], blockSize = FRESQUE_BLOCK_SIZE) {
-  // Placement strictement horizontal: chaque panneau démarre à droite du précédent.
-  let currentXBlocks = 0;
-  return panels.map((panel, index) => {
-    const normalizedPanel = normalizePanel(panel, index + 1);
-    const layout = {
-      id: normalizedPanel.id,
-      xBlocks: currentXBlocks,
-      yBlocks: 0,
-      widthBlocks: normalizedPanel.widthBlocks,
-      heightBlocks: normalizedPanel.heightBlocks
-    };
-    currentXBlocks += normalizedPanel.widthBlocks;
-    return {
-      ...layout,
-      x: blocksToPixels(layout.xBlocks, blockSize),
-      y: blocksToPixels(layout.yBlocks, blockSize),
-      width: blocksToPixels(layout.widthBlocks, blockSize),
-      height: blocksToPixels(layout.heightBlocks, blockSize)
-    };
-  });
+function generateBalancedHorizontalPanels(totalWidthBlocks, totalHeightBlocks) {
+  const maxPanelWidth = Math.max(1, Math.floor(36 / totalHeightBlocks));
+  let panelCount = Math.max(1, Math.ceil(totalWidthBlocks / maxPanelWidth));
+  if (panelCount === 1 && totalWidthBlocks > 1) {
+    panelCount = 2;
+  }
+  if (panelCount > 1 && (totalWidthBlocks % panelCount) === 0 && (totalWidthBlocks / panelCount) >= maxPanelWidth) {
+    panelCount += 1;
+  }
+  const baseWidth = Math.floor(totalWidthBlocks / panelCount);
+  const remainder = totalWidthBlocks % panelCount;
+  let xBlocks = 0;
+  const panels = [];
+  for (let i = 0; i < panelCount; i += 1) {
+    const widthBlocks = baseWidth + (i < remainder ? 1 : 0);
+    panels.push(buildPanelWithPixels({ id: i + 1, xBlocks, yBlocks: 0, widthBlocks, heightBlocks: totalHeightBlocks }));
+    xBlocks += widthBlocks;
+  }
+  return panels;
 }
 
-function validatePanels({ totalWidthBlocks, totalHeightBlocks, panels }) {
-  // Validation métier: largeurs cumulées <= fresque, hauteur de chaque panneau <= hauteur fresque.
-  const errors = [];
-  const safeTotalWidth = Math.max(1, Number(totalWidthBlocks) || 1);
-  const safeTotalHeight = Math.max(1, Number(totalHeightBlocks) || 1);
-  const panelLayouts = computePanelLayout(panels);
-  const totalPanelsWidth = panelLayouts.reduce((sum, panel) => sum + panel.widthBlocks, 0);
+function splitDimensionBalanced(total, chunkCount) {
+  const base = Math.floor(total / chunkCount);
+  const remainder = total % chunkCount;
+  return Array.from({ length: chunkCount }, (_, index) => base + (index < remainder ? 1 : 0));
+}
 
-  if (totalPanelsWidth > safeTotalWidth) {
-    errors.push(`La somme des largeurs (${totalPanelsWidth} blocs) dépasse la fresque (${safeTotalWidth} blocs).`);
+function generateGridPanels(totalWidthBlocks, totalHeightBlocks) {
+  const minRows = Math.ceil(totalHeightBlocks / 36);
+  let best = null;
+  for (let rowCount = minRows; rowCount <= totalHeightBlocks; rowCount += 1) {
+    const rowHeights = splitDimensionBalanced(totalHeightBlocks, rowCount);
+    let colCount = 1;
+    let valid = true;
+    rowHeights.forEach((rowHeight) => {
+      const maxWidth = Math.max(1, Math.floor(36 / rowHeight));
+      if (maxWidth < 1) valid = false;
+      colCount = Math.max(colCount, Math.ceil(totalWidthBlocks / maxWidth));
+    });
+    if (!valid) continue;
+    const panelCount = rowCount * colCount;
+    const score = panelCount * 1000 + Math.abs(colCount - rowCount);
+    if (!best || score < best.score) best = { rowHeights, colCount, score };
   }
 
-  panelLayouts.forEach((panel) => {
-    if (panel.heightBlocks > safeTotalHeight) {
-      errors.push(`Le panneau ${panel.id} (${panel.heightBlocks} blocs de haut) dépasse la hauteur totale (${safeTotalHeight} blocs).`);
+  const rowHeights = best?.rowHeights || [totalHeightBlocks];
+  const colWidths = splitDimensionBalanced(totalWidthBlocks, best?.colCount || 1);
+  const panels = [];
+  let panelId = 1;
+  let yBlocks = 0;
+  rowHeights.forEach((rowHeight) => {
+    let xBlocks = 0;
+    colWidths.forEach((colWidth) => {
+      panels.push(buildPanelWithPixels({ id: panelId, xBlocks, yBlocks, widthBlocks: colWidth, heightBlocks: rowHeight }));
+      panelId += 1;
+      xBlocks += colWidth;
+    });
+    yBlocks += rowHeight;
+  });
+  return panels;
+}
+
+function computeAutoPanels(totalWidthBlocks, totalHeightBlocks) {
+  const safeWidth = Math.max(1, Number(totalWidthBlocks) || 1);
+  const safeHeight = Math.max(1, Number(totalHeightBlocks) || 1);
+  const panels = safeHeight <= 36
+    ? generateBalancedHorizontalPanels(safeWidth, safeHeight)
+    : generateGridPanels(safeWidth, safeHeight);
+  return {
+    totalWidthBlocks: safeWidth,
+    totalHeightBlocks: safeHeight,
+    totalWidthPx: blocksToPixels(safeWidth),
+    totalHeightPx: blocksToPixels(safeHeight),
+    panels
+  };
+}
+
+function validatePanels(panels, totalWidthBlocks, totalHeightBlocks) {
+  const errors = [];
+  const safeWidth = Math.max(1, Number(totalWidthBlocks) || 1);
+  const safeHeight = Math.max(1, Number(totalHeightBlocks) || 1);
+  const normalizedPanels = panels.map((panel) => buildPanelWithPixels(panel));
+  const maxRight = normalizedPanels.reduce((max, panel) => Math.max(max, panel.xBlocks + panel.widthBlocks), 0);
+  const maxBottom = normalizedPanels.reduce((max, panel) => Math.max(max, panel.yBlocks + panel.heightBlocks), 0);
+
+  normalizedPanels.forEach((panel) => {
+    if (panel.mapsUsed > 36) errors.push(`Le panneau ${panel.id} dépasse 36 maps (${panel.mapsUsed}).`);
+    if ((panel.xBlocks + panel.widthBlocks) > safeWidth || (panel.yBlocks + panel.heightBlocks) > safeHeight) {
+      errors.push(`Le panneau ${panel.id} dépasse la fresque.`);
     }
   });
 
-  return {
-    isValid: errors.length === 0,
-    errors,
-    panelLayouts,
-    totalPanelsWidth,
-    totalWidthBlocks: safeTotalWidth,
-    totalHeightBlocks: safeTotalHeight
-  };
+  if (maxRight !== safeWidth) errors.push(`La couverture en largeur est invalide (${maxRight}/${safeWidth} blocs).`);
+  if (maxBottom !== safeHeight) errors.push(`La couverture en hauteur est invalide (${maxBottom}/${safeHeight} blocs).`);
+
+  return { isValid: errors.length === 0, errors, panels: normalizedPanels };
 }
 
 function formatPanelFilename(index) {
@@ -1377,55 +1437,54 @@ function getFresqueMetaSingleLineWithOptions(pokemon, displayOptions) {
 }
 
 function getFresquePanelConfigFromInputs() {
-  return {
-    totalWidthBlocks: Math.max(1, Number(el.fresqueTotalWidthBlocks?.value || 1)),
-    totalHeightBlocks: Math.max(1, Number(el.fresqueTotalHeightBlocks?.value || 1)),
-    panels: fresquePanels.map((panel, index) => normalizePanel(panel, index + 1))
-  };
+  const totalWidthBlocks = Math.max(1, Number(el.fresqueTotalWidthBlocks?.value || 1));
+  const totalHeightBlocks = Math.max(1, Number(el.fresqueTotalHeightBlocks?.value || 1));
+  const computed = computeAutoPanels(totalWidthBlocks, totalHeightBlocks);
+  fresquePanels = computed.panels;
+  return computed;
 }
 
 function renderPanelsPreview() {
   if (!el.fresquePanelsList || !el.fresquePanelsInfo) return;
   const config = getFresquePanelConfigFromInputs();
-  const validation = validatePanels(config);
+  const validation = validatePanels(config.panels, config.totalWidthBlocks, config.totalHeightBlocks);
 
-  el.fresquePanelsList.innerHTML = fresquePanels.map((panel, index) => `
-    <div class="fresque-panel-row" data-panel-id="${panel.id}">
-      <p class="micro">Panneau ${index + 1}</p>
-      <label class="field-group">
-        <span class="label">Largeur (blocs)</span>
-        <input type="number" min="1" step="1" data-panel-width-id="${panel.id}" value="${panel.widthBlocks}" />
-      </label>
-      <label class="field-group">
-        <span class="label">Hauteur (blocs)</span>
-        <input type="number" min="1" step="1" data-panel-height-id="${panel.id}" value="${panel.heightBlocks}" />
-      </label>
-      <button class="btn btn-danger" type="button" data-remove-panel-id="${panel.id}">Supprimer</button>
+  el.fresquePanelsList.innerHTML = config.panels.map((panel) => `
+    <div class="fresque-panel-row">
+      <p class="micro">Panneau ${panel.id}</p>
+      <p class="body-small">${panel.widthBlocks}×${panel.heightBlocks} blocs</p>
+      <p class="body-small">x=${panel.xBlocks}, y=${panel.yBlocks}</p>
+      <p class="body-small">${panel.mapsUsed}/36 maps</p>
     </div>
   `).join("");
-
-  if (!fresquePanels.length) {
-    el.fresquePanelsInfo.textContent = "Ajoute au moins un panneau.";
-    el.fresqueExportPanelsBtn.disabled = true;
-    return;
-  }
   if (!completedPokemonList.length) {
     el.fresquePanelsInfo.textContent = "Aucun dessin disponible pour l’export.";
     el.fresqueExportPanelsBtn.disabled = true;
+    if (el.fresquePanelsPreview) el.fresquePanelsPreview.innerHTML = "";
     return;
   }
 
-  const positionsPreview = validation.panelLayouts
+  const positionsPreview = validation.panels
     .map((panel) => `P${panel.id} x=${panel.xBlocks}, y=${panel.yBlocks}, w=${panel.widthBlocks}, h=${panel.heightBlocks}`)
     .join(" | ");
   if (validation.errors.length) {
     el.fresquePanelsInfo.textContent = `Erreurs: ${validation.errors.join(" ")}`;
     el.fresqueExportPanelsBtn.disabled = true;
+    if (el.fresquePanelsPreview) el.fresquePanelsPreview.innerHTML = "";
     return;
   }
 
-  el.fresquePanelsInfo.textContent = `OK · largeur cumulée ${validation.totalPanelsWidth}/${validation.totalWidthBlocks} blocs · positions: ${positionsPreview}`;
+  el.fresquePanelsInfo.textContent = `OK · ${config.panels.length} panneau(x) · positions: ${positionsPreview}`;
   el.fresqueExportPanelsBtn.disabled = false;
+  if (el.fresquePanelsPreview) {
+    const maxDimension = Math.max(config.totalWidthBlocks, config.totalHeightBlocks);
+    const cellSize = Math.max(10, Math.floor(360 / Math.max(1, maxDimension)));
+    el.fresquePanelsPreview.style.gridTemplateColumns = `repeat(${config.totalWidthBlocks}, ${cellSize}px)`;
+    el.fresquePanelsPreview.style.gridTemplateRows = `repeat(${config.totalHeightBlocks}, ${cellSize}px)`;
+    el.fresquePanelsPreview.innerHTML = config.panels.map((panel) => `
+      <div class="fresque-panel-preview-item" style="grid-column:${panel.xBlocks + 1} / span ${panel.widthBlocks}; grid-row:${panel.yBlocks + 1} / span ${panel.heightBlocks};">P${panel.id}</div>
+    `).join("");
+  }
 }
 
 function renderFresque() {
@@ -2084,27 +2143,20 @@ async function updateNickname(newNickname) {
   showToast("Pseudo enregistré.");
 }
 
-async function buildFresqueExportCanvas() {
+async function renderFullMuralToSourceCanvas() {
   if (!completedPokemonList.length) throw new Error("Aucune image.");
-  const mode = el.fresqueMode.value;
-  const value = Number(el.fresqueValue.value || 1);
-  const widthPx = Math.max(100, Number(el.fresqueWidth.value || 1920));
-  const heightPx = Math.max(100, Number(el.fresqueHeight.value || 1080));
+  const mural = getFresquePanelConfigFromInputs();
   const displayOptions = getCurrentFresqueDisplayOptions();
   const fresquePokemonList = [...completedPokemonList].sort((a, b) => a.id - b.id);
-  const { cols } = computeFresqueLayout(fresquePokemonList.length, mode, value, widthPx, heightPx);
-
-  const exportWidth = mode === "dimensions" ? widthPx : cols * 220;
-  const rows = Math.ceil(fresquePokemonList.length / cols);
-  const imageSize = Math.max(10, Math.floor(exportWidth / cols));
-  const exportHeightByGrid = imageSize * rows;
-  const exportHeight = mode === "dimensions" ? heightPx : exportHeightByGrid;
-  const cellHeight = Math.max(1, exportHeight / rows);
-  const baseFontPx = Math.max(8, Math.min(14, Math.round(Math.min(imageSize, cellHeight) * 0.065)));
+  const cols = mural.totalWidthBlocks;
+  const rows = mural.totalHeightBlocks;
+  const imageSize = FRESQUE_BLOCK_SIZE;
+  const cellHeight = FRESQUE_BLOCK_SIZE;
+  const baseFontPx = Math.max(8, Math.round(FRESQUE_BLOCK_SIZE * 0.07));
   const showMeta = displayOptions.number || displayOptions.name || displayOptions.pseudo;
   const canvas = document.createElement("canvas");
-  canvas.width = exportWidth;
-  canvas.height = exportHeight;
+  canvas.width = mural.totalWidthPx;
+  canvas.height = mural.totalHeightPx;
   const ctx = canvas.getContext("2d");
 
   ctx.fillStyle = "#ffffff";
@@ -2173,41 +2225,59 @@ async function buildFresqueExportCanvas() {
 }
 
 async function downloadFresqueImage() {
-  const canvas = await buildFresqueExportCanvas();
+  const canvas = await renderFullMuralToSourceCanvas();
   const link = document.createElement("a");
   link.href = canvas.toDataURL("image/png");
   link.download = `gooningmon-fresque-${Date.now()}.png`;
   link.click();
 }
 
+function downloadPanel(panelCanvas, filename) {
+  return {
+    filename,
+    base64Png: panelCanvas.toDataURL("image/png").split(",")[1]
+  };
+}
+
+function exportPanelsFromSourceCanvas(sourceCanvas, panels, mural) {
+  return panels.map((panel, index) => {
+    const sx = panel.xPx;
+    const sy = panel.yPx;
+    const sw = panel.widthPx;
+    const sh = panel.heightPx;
+    if (sx < 0 || sy < 0 || sw <= 0 || sh <= 0 || (sx + sw) > mural.totalWidthPx || (sy + sh) > mural.totalHeightPx) {
+      throw new Error(`Crop invalide pour le panneau ${panel.id}.`);
+    }
+    const panelCanvas = document.createElement("canvas");
+    panelCanvas.width = sw;
+    panelCanvas.height = sh;
+    const panelCtx = panelCanvas.getContext("2d");
+    panelCtx.drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+    const sample = panelCtx.getImageData(0, 0, 1, 1).data;
+    if (sample[3] === 0 && sw > 0 && sh > 0) {
+      // Détection simple d’un crop potentiellement vide.
+      const center = panelCtx.getImageData(Math.floor(sw / 2), Math.floor(sh / 2), 1, 1).data;
+      if (center[3] === 0) throw new Error(`Le panneau ${panel.id} semble vide après export.`);
+    }
+    return downloadPanel(panelCanvas, formatPanelFilename(index));
+  });
+}
+
 async function exportPanels() {
-  const config = getFresquePanelConfigFromInputs();
-  const validation = validatePanels(config);
+  const mural = getFresquePanelConfigFromInputs();
+  const validation = validatePanels(mural.panels, mural.totalWidthBlocks, mural.totalHeightBlocks);
   if (!validation.isValid) {
     throw new Error(validation.errors[0] || "Configuration invalide.");
   }
 
-  const sourceCanvas = await buildFresqueExportCanvas();
+  const sourceCanvas = await renderFullMuralToSourceCanvas();
+  if (sourceCanvas.width !== mural.totalWidthPx || sourceCanvas.height !== mural.totalHeightPx) {
+    throw new Error(`La fresque rendue (${sourceCanvas.width}x${sourceCanvas.height}) ne correspond pas au format attendu (${mural.totalWidthPx}x${mural.totalHeightPx}).`);
+  }
   const zip = new JSZip();
-
-  validation.panelLayouts.forEach((panel, index) => {
-    const panelCanvas = document.createElement("canvas");
-    panelCanvas.width = panel.width;
-    panelCanvas.height = panel.height;
-    const panelCtx = panelCanvas.getContext("2d");
-    panelCtx.drawImage(
-      sourceCanvas,
-      panel.x,
-      panel.y,
-      panel.width,
-      panel.height,
-      0,
-      0,
-      panel.width,
-      panel.height
-    );
-    const base64Png = panelCanvas.toDataURL("image/png").split(",")[1];
-    zip.file(formatPanelFilename(index), base64Png, { base64: true });
+  const exports = exportPanelsFromSourceCanvas(sourceCanvas, validation.panels, mural);
+  exports.forEach((item) => {
+    zip.file(item.filename, item.base64Png, { base64: true });
   });
 
   const blob = await zip.generateAsync({ type: "blob" });
@@ -2606,34 +2676,7 @@ function bindEvents() {
     el.fresqueShowPseudo.checked = true;
     renderFresque();
   });
-  el.fresqueAddPanelBtn?.addEventListener("click", () => {
-    fresquePanels.push({
-      id: fresquePanelNextId,
-      widthBlocks: 1,
-      heightBlocks: Math.max(1, Number(el.fresqueTotalHeightBlocks?.value || 1))
-    });
-    fresquePanelNextId += 1;
-    renderPanelsPreview();
-  });
-  el.fresquePanelsList?.addEventListener("input", (e) => {
-    const widthId = Number(e.target?.dataset?.panelWidthId);
-    const heightId = Number(e.target?.dataset?.panelHeightId);
-    if (Number.isInteger(widthId)) {
-      const panel = fresquePanels.find((item) => item.id === widthId);
-      if (panel) panel.widthBlocks = Math.max(1, Number(e.target.value || 1));
-      renderPanelsPreview();
-      return;
-    }
-    if (Number.isInteger(heightId)) {
-      const panel = fresquePanels.find((item) => item.id === heightId);
-      if (panel) panel.heightBlocks = Math.max(1, Number(e.target.value || 1));
-      renderPanelsPreview();
-    }
-  });
-  el.fresquePanelsList?.addEventListener("click", (e) => {
-    const removeId = Number(e.target?.dataset?.removePanelId);
-    if (!Number.isInteger(removeId)) return;
-    fresquePanels = fresquePanels.filter((panel) => panel.id !== removeId);
+  el.fresqueGeneratePanelsBtn?.addEventListener("click", () => {
     renderPanelsPreview();
   });
   el.fresqueTotalWidthBlocks?.addEventListener("input", renderPanelsPreview);
