@@ -113,8 +113,22 @@ const el = {
   drawingCanvas: document.getElementById("drawingCanvas"),
   drawingColor: document.getElementById("drawingColor"),
   drawingBrushSize: document.getElementById("drawingBrushSize"),
-  drawingEraserBtn: document.getElementById("drawingEraserBtn"),
-  drawingClearBtn: document.getElementById("drawingClearBtn"),
+  drawingBrushOpacity: document.getElementById("drawingBrushOpacity"),
+  drawingToolBrushBtn: document.getElementById("drawingToolBrushBtn"),
+  drawingToolEraserBtn: document.getElementById("drawingToolEraserBtn"),
+  drawingToolFillBtn: document.getElementById("drawingToolFillBtn"),
+  drawingToolPickerBtn: document.getElementById("drawingToolPickerBtn"),
+  drawingUndoBtn: document.getElementById("drawingUndoBtn"),
+  drawingRedoBtn: document.getElementById("drawingRedoBtn"),
+  drawingClearLayerBtn: document.getElementById("drawingClearLayerBtn"),
+  drawingAddPaletteColorBtn: document.getElementById("drawingAddPaletteColorBtn"),
+  drawingPaletteSwatches: document.getElementById("drawingPaletteSwatches"),
+  drawingAddLayerBtn: document.getElementById("drawingAddLayerBtn"),
+  drawingLayerList: document.getElementById("drawingLayerList"),
+  drawingLayerOpacity: document.getElementById("drawingLayerOpacity"),
+  drawingLayerUpBtn: document.getElementById("drawingLayerUpBtn"),
+  drawingLayerDownBtn: document.getElementById("drawingLayerDownBtn"),
+  drawingDeleteLayerBtn: document.getElementById("drawingDeleteLayerBtn"),
   drawingDownloadBtn: document.getElementById("drawingDownloadBtn"),
   drawingUploadBtn: document.getElementById("drawingUploadBtn"),
   drawingStatus: document.getElementById("drawingStatus"),
@@ -143,8 +157,17 @@ let unbindAdminFeed = null;
 let isAdminListClickBound = false;
 let drawingContext = null;
 let isDrawingActive = false;
-let drawingIsEraserMode = false;
 let drawingLastPoint = null;
+let drawingActiveTool = "brush";
+let drawingLayers = [];
+let drawingActiveLayerId = null;
+let drawingNextLayerId = 1;
+let drawingPalette = [];
+let drawingHistory = [];
+let drawingHistoryIndex = -1;
+const DRAWING_SIZE = 500;
+const DRAWING_MAX_PALETTE_COLORS = 10;
+const DRAWING_PALETTE_STORAGE_KEY = "gooningmon-drawing-palette-v1";
 const GALLERY_FILTER_ALL_VALUE = "__all__";
 const GALLERY_UNKNOWN_AUTHOR = "Pseudo inconnu";
 const GALLERY_FILTER_STORAGE_PREFIX = "gooningmon-gallery-author-filter:";
@@ -315,51 +338,61 @@ function bindRouter() {
 
 function getDrawingPointerPosition(event) {
   const rect = el.drawingCanvas.getBoundingClientRect();
-  const scaleX = el.drawingCanvas.width / rect.width;
-  const scaleY = el.drawingCanvas.height / rect.height;
+  const scaleX = DRAWING_SIZE / rect.width;
+  const scaleY = DRAWING_SIZE / rect.height;
   return {
     x: (event.clientX - rect.left) * scaleX,
     y: (event.clientY - rect.top) * scaleY
   };
 }
 
-function drawSegment(from, to) {
-  if (!drawingContext || !from || !to) return;
-  drawingContext.beginPath();
-  drawingContext.moveTo(from.x, from.y);
-  drawingContext.lineTo(to.x, to.y);
-  drawingContext.stroke();
+function getActiveDrawingLayer() {
+  return drawingLayers.find((layer) => layer.id === drawingActiveLayerId) || null;
 }
 
-function fillDrawingBackground() {
+function createDrawingLayer(name = `Calque ${drawingNextLayerId}`) {
+  const offscreenCanvas = document.createElement("canvas");
+  offscreenCanvas.width = DRAWING_SIZE;
+  offscreenCanvas.height = DRAWING_SIZE;
+  const context = offscreenCanvas.getContext("2d");
+  return {
+    id: drawingNextLayerId++,
+    name,
+    visible: true,
+    opacity: 1,
+    canvas: offscreenCanvas,
+    context
+  };
+}
+
+function drawLayersToMainCanvas() {
   if (!drawingContext) return;
-  drawingContext.save();
-  drawingContext.globalCompositeOperation = "source-over";
+  drawingContext.clearRect(0, 0, DRAWING_SIZE, DRAWING_SIZE);
   drawingContext.fillStyle = "#ffffff";
-  drawingContext.fillRect(0, 0, el.drawingCanvas.width, el.drawingCanvas.height);
-  drawingContext.restore();
+  drawingContext.fillRect(0, 0, DRAWING_SIZE, DRAWING_SIZE);
+  drawingLayers.forEach((layer) => {
+    if (!layer.visible) return;
+    drawingContext.save();
+    drawingContext.globalAlpha = layer.opacity;
+    drawingContext.drawImage(layer.canvas, 0, 0);
+    drawingContext.restore();
+  });
 }
 
-function refreshDrawingToolStyle() {
-  if (!drawingContext) return;
-  drawingContext.lineCap = "round";
-  drawingContext.lineJoin = "round";
-  drawingContext.lineWidth = Number(el.drawingBrushSize.value || 6);
-  drawingContext.globalCompositeOperation = drawingIsEraserMode ? "destination-out" : "source-over";
-  drawingContext.strokeStyle = el.drawingColor.value || "#ffffff";
-}
-
-function initializeDrawingPad() {
-  if (!el.drawingCanvas) return;
-  const ratio = window.devicePixelRatio || 1;
-  const size = 500;
-  el.drawingCanvas.width = Math.floor(size * ratio);
-  el.drawingCanvas.height = Math.floor(size * ratio);
-  drawingContext = el.drawingCanvas.getContext("2d");
-  if (!drawingContext) return;
-  drawingContext.scale(ratio, ratio);
-  fillDrawingBackground();
-  refreshDrawingToolStyle();
+function renderDrawingLayersList() {
+  if (!el.drawingLayerList) return;
+  const ordered = [...drawingLayers].reverse();
+  el.drawingLayerList.innerHTML = ordered.map((layer) => `
+    <button type="button" class="layer-item ${layer.id === drawingActiveLayerId ? "active" : ""}" data-layer-id="${layer.id}">
+      <span class="layer-eye">${layer.visible ? "👁️" : "🚫"}</span>
+      <span class="layer-name">${escapeHtml(layer.name)}</span>
+      <span class="layer-opacity">${Math.round(layer.opacity * 100)}%</span>
+    </button>
+  `).join("");
+  const active = getActiveDrawingLayer();
+  if (active && el.drawingLayerOpacity) {
+    el.drawingLayerOpacity.value = String(Math.round(active.opacity * 100));
+  }
 }
 
 function setDrawingStatus(message, isError = false) {
@@ -368,22 +401,193 @@ function setDrawingStatus(message, isError = false) {
   el.drawingStatus.style.color = isError ? "#ff718f" : "";
 }
 
+function renderDrawingPalette() {
+  if (!el.drawingPaletteSwatches) return;
+  el.drawingPaletteSwatches.innerHTML = drawingPalette.map((color) => `
+    <button type="button" class="palette-chip ${color === el.drawingColor.value ? "active" : ""}" data-color="${color}" style="background:${color};" aria-label="Couleur ${color}"></button>
+  `).join("");
+}
+
+function saveDrawingPalette() {
+  localStorage.setItem(DRAWING_PALETTE_STORAGE_KEY, JSON.stringify(drawingPalette));
+}
+
+function loadDrawingPalette() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DRAWING_PALETTE_STORAGE_KEY) || "[]");
+    if (Array.isArray(saved)) {
+      drawingPalette = saved
+        .filter((value) => typeof value === "string" && /^#[\da-f]{6}$/i.test(value))
+        .slice(0, DRAWING_MAX_PALETTE_COLORS);
+    }
+  } catch (err) {
+    drawingPalette = [];
+  }
+}
+
+function cloneLayerState(layer) {
+  return {
+    id: layer.id,
+    name: layer.name,
+    visible: layer.visible,
+    opacity: layer.opacity,
+    imageData: layer.context.getImageData(0, 0, DRAWING_SIZE, DRAWING_SIZE)
+  };
+}
+
+function pushDrawingHistory() {
+  const snapshot = {
+    activeLayerId: drawingActiveLayerId,
+    layers: drawingLayers.map(cloneLayerState)
+  };
+  drawingHistory = drawingHistory.slice(0, drawingHistoryIndex + 1);
+  drawingHistory.push(snapshot);
+  if (drawingHistory.length > 40) drawingHistory.shift();
+  drawingHistoryIndex = drawingHistory.length - 1;
+}
+
+function restoreDrawingHistory(snapshot) {
+  drawingLayers = snapshot.layers.map((layerState) => {
+    const layer = createDrawingLayer(layerState.name);
+    layer.id = layerState.id;
+    layer.visible = layerState.visible;
+    layer.opacity = layerState.opacity;
+    layer.context.putImageData(layerState.imageData, 0, 0);
+    return layer;
+  });
+  drawingNextLayerId = Math.max(...drawingLayers.map((layer) => layer.id), 0) + 1;
+  drawingActiveLayerId = snapshot.activeLayerId || drawingLayers[0]?.id || null;
+  renderDrawingLayersList();
+  drawLayersToMainCanvas();
+}
+
+function setActiveDrawingTool(tool) {
+  drawingActiveTool = tool;
+  const map = {
+    brush: el.drawingToolBrushBtn,
+    eraser: el.drawingToolEraserBtn,
+    fill: el.drawingToolFillBtn,
+    picker: el.drawingToolPickerBtn
+  };
+  Object.entries(map).forEach(([name, button]) => {
+    button?.classList.toggle("active", name === tool);
+  });
+}
+
+function drawOnLayer(from, to) {
+  const layer = getActiveDrawingLayer();
+  if (!layer || !from || !to) return;
+  const context = layer.context;
+  context.save();
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.lineWidth = Number(el.drawingBrushSize.value || 6);
+  context.globalAlpha = Number(el.drawingBrushOpacity.value || 100) / 100;
+  context.globalCompositeOperation = drawingActiveTool === "eraser" ? "destination-out" : "source-over";
+  context.strokeStyle = el.drawingColor.value || "#111111";
+  context.beginPath();
+  context.moveTo(from.x, from.y);
+  context.lineTo(to.x, to.y);
+  context.stroke();
+  context.restore();
+}
+
+function pickColorAtPoint(point) {
+  const data = drawingContext.getImageData(Math.round(point.x), Math.round(point.y), 1, 1).data;
+  const toHex = (v) => v.toString(16).padStart(2, "0");
+  const color = `#${toHex(data[0])}${toHex(data[1])}${toHex(data[2])}`;
+  el.drawingColor.value = color;
+  renderDrawingPalette();
+  setDrawingStatus(`Couleur capturée: ${color}`);
+}
+
+function fillLayerAtPoint(point) {
+  const layer = getActiveDrawingLayer();
+  if (!layer) return;
+  const x = Math.max(0, Math.min(DRAWING_SIZE - 1, Math.round(point.x)));
+  const y = Math.max(0, Math.min(DRAWING_SIZE - 1, Math.round(point.y)));
+  const imageData = layer.context.getImageData(0, 0, DRAWING_SIZE, DRAWING_SIZE);
+  const { data } = imageData;
+  const index = (y * DRAWING_SIZE + x) * 4;
+  const target = [data[index], data[index + 1], data[index + 2], data[index + 3]];
+  const colorHex = el.drawingColor.value || "#111111";
+  const fill = [
+    parseInt(colorHex.slice(1, 3), 16),
+    parseInt(colorHex.slice(3, 5), 16),
+    parseInt(colorHex.slice(5, 7), 16),
+    Math.round((Number(el.drawingBrushOpacity.value || 100) / 100) * 255)
+  ];
+  if (target.every((v, i) => v === fill[i])) return;
+
+  const stack = [[x, y]];
+  while (stack.length) {
+    const [cx, cy] = stack.pop();
+    if (cx < 0 || cy < 0 || cx >= DRAWING_SIZE || cy >= DRAWING_SIZE) continue;
+    const i = (cy * DRAWING_SIZE + cx) * 4;
+    if (data[i] !== target[0] || data[i + 1] !== target[1] || data[i + 2] !== target[2] || data[i + 3] !== target[3]) continue;
+    data[i] = fill[0];
+    data[i + 1] = fill[1];
+    data[i + 2] = fill[2];
+    data[i + 3] = fill[3];
+    stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+  }
+  layer.context.putImageData(imageData, 0, 0);
+}
+
+function initializeDrawingPad() {
+  if (!el.drawingCanvas) return;
+  drawingContext = el.drawingCanvas.getContext("2d");
+  if (!drawingContext) return;
+  drawingLayers = [createDrawingLayer("Lineart"), createDrawingLayer("Couleurs")];
+  drawingActiveLayerId = drawingLayers[1].id;
+  loadDrawingPalette();
+  drawLayersToMainCanvas();
+  renderDrawingLayersList();
+  renderDrawingPalette();
+  setActiveDrawingTool("brush");
+  pushDrawingHistory();
+}
+
+function exportDrawingBlob() {
+  drawLayersToMainCanvas();
+  return new Promise((resolve, reject) => {
+    el.drawingCanvas.toBlob((generatedBlob) => {
+      if (generatedBlob) resolve(generatedBlob);
+      else reject(new Error("Blob invalide."));
+    }, "image/png");
+  });
+}
+
 function bindDrawingEvents() {
   if (!el.drawingCanvas || !drawingContext) return;
 
   const start = (event) => {
+    const point = getDrawingPointerPosition(event);
+    if (drawingActiveTool === "picker") {
+      pickColorAtPoint(point);
+      return;
+    }
+    if (drawingActiveTool === "fill") {
+      fillLayerAtPoint(point);
+      drawLayersToMainCanvas();
+      pushDrawingHistory();
+      return;
+    }
     isDrawingActive = true;
-    drawingLastPoint = getDrawingPointerPosition(event);
-    drawSegment(drawingLastPoint, drawingLastPoint);
+    drawingLastPoint = point;
+    drawOnLayer(drawingLastPoint, drawingLastPoint);
+    drawLayersToMainCanvas();
   };
   const move = (event) => {
     if (!isDrawingActive || !drawingLastPoint) return;
     event.preventDefault();
     const nextPoint = getDrawingPointerPosition(event);
-    drawSegment(drawingLastPoint, nextPoint);
+    drawOnLayer(drawingLastPoint, nextPoint);
     drawingLastPoint = nextPoint;
+    drawLayersToMainCanvas();
   };
   const stop = () => {
+    if (isDrawingActive) pushDrawingHistory();
     isDrawingActive = false;
     drawingLastPoint = null;
   };
@@ -393,37 +597,146 @@ function bindDrawingEvents() {
   el.drawingCanvas.addEventListener("pointerup", stop);
   el.drawingCanvas.addEventListener("pointerleave", stop);
 
-  el.drawingColor.addEventListener("input", () => {
-    refreshDrawingToolStyle();
+  [el.drawingColor, el.drawingBrushSize, el.drawingBrushOpacity].forEach((input) => {
+    input?.addEventListener("input", () => renderDrawingPalette());
   });
-  el.drawingBrushSize.addEventListener("input", () => {
-    refreshDrawingToolStyle();
+
+  el.drawingToolBrushBtn.addEventListener("click", () => setActiveDrawingTool("brush"));
+  el.drawingToolEraserBtn.addEventListener("click", () => setActiveDrawingTool("eraser"));
+  el.drawingToolFillBtn.addEventListener("click", () => setActiveDrawingTool("fill"));
+  el.drawingToolPickerBtn.addEventListener("click", () => setActiveDrawingTool("picker"));
+
+  el.drawingUndoBtn.addEventListener("click", () => {
+    if (drawingHistoryIndex <= 0) return;
+    drawingHistoryIndex -= 1;
+    restoreDrawingHistory(drawingHistory[drawingHistoryIndex]);
   });
-  el.drawingEraserBtn.addEventListener("click", () => {
-    drawingIsEraserMode = !drawingIsEraserMode;
-    el.drawingEraserBtn.textContent = drawingIsEraserMode ? "Pinceau" : "Gomme";
-    refreshDrawingToolStyle();
+  el.drawingRedoBtn.addEventListener("click", () => {
+    if (drawingHistoryIndex >= drawingHistory.length - 1) return;
+    drawingHistoryIndex += 1;
+    restoreDrawingHistory(drawingHistory[drawingHistoryIndex]);
   });
-  el.drawingClearBtn.addEventListener("click", () => {
-    drawingContext.clearRect(0, 0, el.drawingCanvas.width, el.drawingCanvas.height);
-    fillDrawingBackground();
-    setDrawingStatus("Zone effacée.");
+
+  el.drawingClearLayerBtn.addEventListener("click", () => {
+    const layer = getActiveDrawingLayer();
+    if (!layer) return;
+    layer.context.clearRect(0, 0, DRAWING_SIZE, DRAWING_SIZE);
+    drawLayersToMainCanvas();
+    pushDrawingHistory();
+    setDrawingStatus(`Calque "${layer.name}" effacé.`);
   });
-  el.drawingDownloadBtn.addEventListener("click", () => {
-    const link = document.createElement("a");
-    link.href = el.drawingCanvas.toDataURL("image/png");
-    link.download = `dessin-${Date.now()}.png`;
-    link.click();
+
+  el.drawingAddPaletteColorBtn.addEventListener("click", () => {
+    const color = el.drawingColor.value;
+    if (drawingPalette.includes(color)) {
+      setDrawingStatus("Couleur déjà dans la palette.");
+      return;
+    }
+    if (drawingPalette.length >= DRAWING_MAX_PALETTE_COLORS) {
+      setDrawingStatus("Palette pleine (10 couleurs max).", true);
+      return;
+    }
+    drawingPalette.push(color);
+    saveDrawingPalette();
+    renderDrawingPalette();
   });
+
+  el.drawingPaletteSwatches.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-color]");
+    if (!button) return;
+    el.drawingColor.value = button.dataset.color;
+    renderDrawingPalette();
+  });
+  el.drawingPaletteSwatches.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    const button = event.target.closest("[data-color]");
+    if (!button) return;
+    drawingPalette = drawingPalette.filter((color) => color !== button.dataset.color);
+    saveDrawingPalette();
+    renderDrawingPalette();
+  });
+
+  el.drawingAddLayerBtn.addEventListener("click", () => {
+    const layer = createDrawingLayer();
+    drawingLayers.push(layer);
+    drawingActiveLayerId = layer.id;
+    renderDrawingLayersList();
+    pushDrawingHistory();
+  });
+
+  el.drawingLayerList.addEventListener("click", (event) => {
+    const row = event.target.closest("[data-layer-id]");
+    if (!row) return;
+    const id = Number(row.dataset.layerId);
+    if (event.target.closest(".layer-eye")) {
+      const layer = drawingLayers.find((entry) => entry.id === id);
+      if (!layer) return;
+      layer.visible = !layer.visible;
+      drawLayersToMainCanvas();
+      renderDrawingLayersList();
+      pushDrawingHistory();
+      return;
+    }
+    drawingActiveLayerId = id;
+    renderDrawingLayersList();
+  });
+
+  el.drawingLayerOpacity.addEventListener("input", () => {
+    const layer = getActiveDrawingLayer();
+    if (!layer) return;
+    layer.opacity = Number(el.drawingLayerOpacity.value || 100) / 100;
+    drawLayersToMainCanvas();
+    renderDrawingLayersList();
+  });
+  el.drawingLayerOpacity.addEventListener("change", () => pushDrawingHistory());
+
+  el.drawingLayerUpBtn.addEventListener("click", () => {
+    const idx = drawingLayers.findIndex((layer) => layer.id === drawingActiveLayerId);
+    if (idx < 0 || idx === drawingLayers.length - 1) return;
+    [drawingLayers[idx], drawingLayers[idx + 1]] = [drawingLayers[idx + 1], drawingLayers[idx]];
+    drawLayersToMainCanvas();
+    renderDrawingLayersList();
+    pushDrawingHistory();
+  });
+
+  el.drawingLayerDownBtn.addEventListener("click", () => {
+    const idx = drawingLayers.findIndex((layer) => layer.id === drawingActiveLayerId);
+    if (idx <= 0) return;
+    [drawingLayers[idx], drawingLayers[idx - 1]] = [drawingLayers[idx - 1], drawingLayers[idx]];
+    drawLayersToMainCanvas();
+    renderDrawingLayersList();
+    pushDrawingHistory();
+  });
+
+  el.drawingDeleteLayerBtn.addEventListener("click", () => {
+    if (drawingLayers.length <= 1) {
+      setDrawingStatus("Impossible de supprimer le dernier calque.", true);
+      return;
+    }
+    drawingLayers = drawingLayers.filter((layer) => layer.id !== drawingActiveLayerId);
+    drawingActiveLayerId = drawingLayers[drawingLayers.length - 1].id;
+    drawLayersToMainCanvas();
+    renderDrawingLayersList();
+    pushDrawingHistory();
+  });
+
+  el.drawingDownloadBtn.addEventListener("click", async () => {
+    try {
+      const blob = await exportDrawingBlob();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `dessin-${Date.now()}.png`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (err) {
+      setDrawingStatus(err.message || "Export impossible.", true);
+    }
+  });
+
   el.drawingUploadBtn.addEventListener("click", async () => {
     try {
       setDrawingStatus("Envoi...");
-      const blob = await new Promise((resolve, reject) => {
-        el.drawingCanvas.toBlob((generatedBlob) => {
-          if (generatedBlob) resolve(generatedBlob);
-          else reject(new Error("Blob invalide."));
-        }, "image/png");
-      });
+      const blob = await exportDrawingBlob();
       const file = new File([blob], `drawing-${Date.now()}.png`, { type: "image/png" });
       await uploadDrawing(file);
       setDrawingStatus("Dessin envoyé.");

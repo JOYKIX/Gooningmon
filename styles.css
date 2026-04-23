@@ -524,26 +524,87 @@ button.ghost:hover {
 }
 
 .drawings-tools {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 0.6rem;
-  align-items: center;
 }
 
 .drawings-tools label {
   display: grid;
   gap: 0.32rem;
-  min-width: 120px;
   font-weight: 600;
 }
 
 .drawings-tools input[type="color"] {
   padding: 0.2rem;
   min-height: 40px;
+  width: 100%;
 }
 
-.drawings-tools input[type="range"] {
+.drawings-tools input[type="range"],
+#drawingLayerOpacity {
   accent-color: var(--red);
+}
+
+.drawings-studio {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: minmax(0, 1fr) 240px;
+}
+
+.drawings-main {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.tool-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.tool-btn.active {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
+}
+
+.card-subsection {
+  background: #111;
+  border: 1px solid #2c2c2c;
+  border-radius: 12px;
+  padding: 0.7rem;
+}
+
+.drawing-palette {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.palette-head,
+.layers-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.palette-swatches {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.palette-chip {
+  width: 100%;
+  min-height: 30px;
+  border: 2px solid #2f2f2f;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.palette-chip.active {
+  border-color: #fff;
+  box-shadow: 0 0 0 1px #fff inset;
 }
 
 .drawing-canvas-wrap {
@@ -561,6 +622,68 @@ button.ghost:hover {
   display: block;
   cursor: crosshair;
   touch-action: none;
+}
+
+.drawing-layers {
+  display: grid;
+  gap: 0.6rem;
+  align-content: start;
+}
+
+.layer-list {
+  display: grid;
+  gap: 0.4rem;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.layer-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #2c2c2c;
+  border-radius: 8px;
+  background: #161616;
+  color: #fff;
+  padding: 0.4rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.layer-item.active {
+  border-color: var(--red);
+  background: #2a0a11;
+}
+
+.layer-eye {
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.layer-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layer-opacity {
+  font-size: 0.8rem;
+  color: #cecece;
+}
+
+.layer-actions,
+.drawings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@media (max-width: 900px) {
+  .drawings-studio {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .check-pill {
