@@ -131,13 +131,30 @@
             <div class="gallery-head-main">
               <h2>Galerie</h2>
               <p id="galleryProgress" class="small gallery-progress">0/151 (0%)</p>
-              <p class="small">Explore les créations et note tes dessins préférés sur 5 étoiles.</p>
+              <p class="small">Explore les créations, filtre rapidement et télécharge les dessins que tu préfères.</p>
             </div>
-            <div class="gallery-filter">
-              <label for="galleryAuthorFilter" class="small">Filtrer par pseudo</label>
-              <select id="galleryAuthorFilter" aria-label="Filtrer par pseudo">
-                <option value="__all__">Tous les pseudos</option>
-              </select>
+            <div class="gallery-filter-grid">
+              <div class="gallery-filter">
+                <label for="galleryAuthorFilter" class="small">Filtrer par pseudo</label>
+                <select id="galleryAuthorFilter" aria-label="Filtrer par pseudo">
+                  <option value="__all__">Tous les pseudos</option>
+                </select>
+              </div>
+              <div class="gallery-filter">
+                <label for="gallerySearchInput" class="small">Rechercher</label>
+                <input id="gallerySearchInput" type="search" placeholder="Nom ou numéro Pokémon" aria-label="Rechercher un dessin par nom ou numéro" />
+              </div>
+              <div class="gallery-filter">
+                <label for="gallerySortSelect" class="small">Trier</label>
+                <select id="gallerySortSelect" aria-label="Trier les dessins">
+                  <option value="recent">Plus récents</option>
+                  <option value="oldest">Plus anciens</option>
+                  <option value="number-asc">Numéro croissant</option>
+                  <option value="number-desc">Numéro décroissant</option>
+                  <option value="name-asc">Nom A → Z</option>
+                  <option value="name-desc">Nom Z → A</option>
+                </select>
+              </div>
             </div>
           </div>
           <div id="gallery" class="gallery"></div>

@@ -98,6 +98,8 @@ const el = {
   uploadState: document.getElementById("uploadState"),
   galleryProgress: document.getElementById("galleryProgress"),
   galleryAuthorFilter: document.getElementById("galleryAuthorFilter"),
+  gallerySearchInput: document.getElementById("gallerySearchInput"),
+  gallerySortSelect: document.getElementById("gallerySortSelect"),
   gallery: document.getElementById("gallery"),
   fresqueGrid: document.getElementById("fresqueGrid"),
   fresqueInfo: document.getElementById("fresqueInfo"),
@@ -171,9 +173,11 @@ const DRAWING_PALETTE_STORAGE_KEY = "gooningmon-drawing-palette-v1";
 const GALLERY_FILTER_ALL_VALUE = "__all__";
 const GALLERY_UNKNOWN_AUTHOR = "Pseudo inconnu";
 const GALLERY_FILTER_STORAGE_PREFIX = "gooningmon-gallery-author-filter:";
-const GALLERY_RATING_MIN = 1;
-const GALLERY_RATING_MAX = 5;
+const GALLERY_SEARCH_STORAGE_PREFIX = "gooningmon-gallery-search:";
+const GALLERY_SORT_STORAGE_PREFIX = "gooningmon-gallery-sort:";
 let selectedGalleryAuthor = GALLERY_FILTER_ALL_VALUE;
+let gallerySearchQuery = "";
+let selectedGallerySort = "recent";
 
 function normalizeUserPokemonEntry(entry, fallbackId = null) {
   if (!entry) return null;
@@ -940,44 +944,6 @@ function getGalleryAuthorName(pokemon) {
   return sanitizeNickname(pokemon?.authorName) || GALLERY_UNKNOWN_AUTHOR;
 }
 
-function getRatingAverage(pokemon) {
-  if (!pokemon || !Number.isFinite(Number(pokemon.ratingAverage))) return 0;
-  const value = Number(pokemon.ratingAverage);
-  return Math.max(0, Math.min(GALLERY_RATING_MAX, value));
-}
-
-function getRatingCount(pokemon) {
-  const count = Number(pokemon?.ratingCount);
-  return Number.isInteger(count) && count > 0 ? count : 0;
-}
-
-function getMyRatingForPokemon(pokemon) {
-  if (!currentUser?.uid || !pokemon?.ratings) return 0;
-  const score = Number(pokemon.ratings[currentUser.uid]);
-  return Number.isInteger(score) && score >= GALLERY_RATING_MIN && score <= GALLERY_RATING_MAX ? score : 0;
-}
-
-function renderRatingStars(pokemon) {
-  const myRating = getMyRatingForPokemon(pokemon);
-  const stars = [];
-  for (let score = GALLERY_RATING_MIN; score <= GALLERY_RATING_MAX; score += 1) {
-    const isActive = myRating >= score;
-    stars.push(`
-      <button
-        type="button"
-        class="star-btn ${isActive ? "active" : ""}"
-        data-action="rate"
-        data-id="${pokemon.id}"
-        data-score="${score}"
-        title="Noter ${score}/5"
-        aria-label="Noter ${score} étoile${score > 1 ? "s" : ""}">
-        <span class="material-symbols-rounded" aria-hidden="true">star</span>
-      </button>
-    `);
-  }
-  return stars.join("");
-}
-
 function compareNames(a, b) {
   return a.localeCompare(b, "fr", { sensitivity: "base", numeric: true });
 }
@@ -988,12 +954,32 @@ function getUniqueGalleryAuthors(pokemonList = completedPokemonList) {
 }
 
 function getFilteredGalleryPokemon() {
-  if (selectedGalleryAuthor === GALLERY_FILTER_ALL_VALUE) return completedPokemonList;
-  return completedPokemonList.filter((pokemon) => getGalleryAuthorName(pokemon) === selectedGalleryAuthor);
+  return completedPokemonList.filter((pokemon) => {
+    const matchesAuthor = selectedGalleryAuthor === GALLERY_FILTER_ALL_VALUE
+      || getGalleryAuthorName(pokemon) === selectedGalleryAuthor;
+    if (!matchesAuthor) return false;
+
+    if (!gallerySearchQuery) return true;
+    const normalizedQuery = normalizePokemonName(gallerySearchQuery);
+    const pokemonName = normalizePokemonName(pokemon.name);
+    const pokemonNumber = String(pokemon.id).padStart(3, "0");
+    const pokemonNumberRaw = String(pokemon.id);
+    return pokemonName.includes(normalizedQuery)
+      || pokemonNumber.includes(normalizedQuery)
+      || pokemonNumberRaw.includes(normalizedQuery);
+  });
 }
 
 function getGalleryFilterStorageKey() {
   return `${GALLERY_FILTER_STORAGE_PREFIX}${activeGeneration}`;
+}
+
+function getGallerySearchStorageKey() {
+  return `${GALLERY_SEARCH_STORAGE_PREFIX}${activeGeneration}`;
+}
+
+function getGallerySortStorageKey() {
+  return `${GALLERY_SORT_STORAGE_PREFIX}${activeGeneration}`;
 }
 
 function saveGalleryAuthorFilter() {
@@ -1004,12 +990,63 @@ function saveGalleryAuthorFilter() {
   }
 }
 
+function saveGallerySearchQuery() {
+  try {
+    sessionStorage.setItem(getGallerySearchStorageKey(), gallerySearchQuery);
+  } catch (err) {
+    console.warn("[Gallery] Impossible de sauvegarder la recherche.", err);
+  }
+}
+
+function saveGallerySort() {
+  try {
+    sessionStorage.setItem(getGallerySortStorageKey(), selectedGallerySort);
+  } catch (err) {
+    console.warn("[Gallery] Impossible de sauvegarder le tri.", err);
+  }
+}
+
 function loadGalleryAuthorFilter() {
   try {
     const stored = sessionStorage.getItem(getGalleryFilterStorageKey());
     return stored || GALLERY_FILTER_ALL_VALUE;
   } catch (err) {
     return GALLERY_FILTER_ALL_VALUE;
+  }
+}
+
+function loadGallerySearchQuery() {
+  try {
+    return (sessionStorage.getItem(getGallerySearchStorageKey()) || "").slice(0, 40);
+  } catch (err) {
+    return "";
+  }
+}
+
+function loadGallerySort() {
+  try {
+    return sessionStorage.getItem(getGallerySortStorageKey()) || "recent";
+  } catch (err) {
+    return "recent";
+  }
+}
+
+function sortGalleryPokemon(list) {
+  const sorted = [...list];
+  switch (selectedGallerySort) {
+    case "oldest":
+      return sorted.sort((a, b) => (a.completedAt || 0) - (b.completedAt || 0));
+    case "number-asc":
+      return sorted.sort((a, b) => (a.id || 0) - (b.id || 0));
+    case "number-desc":
+      return sorted.sort((a, b) => (b.id || 0) - (a.id || 0));
+    case "name-asc":
+      return sorted.sort((a, b) => compareNames(a.name || "", b.name || ""));
+    case "name-desc":
+      return sorted.sort((a, b) => compareNames(b.name || "", a.name || ""));
+    case "recent":
+    default:
+      return sorted.sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
   }
 }
 
@@ -1042,7 +1079,13 @@ function renderGalleryAuthorFilter() {
 function renderGallery() {
   renderGalleryProgress();
   renderGalleryAuthorFilter();
-  const visiblePokemon = getFilteredGalleryPokemon();
+  const visiblePokemon = sortGalleryPokemon(getFilteredGalleryPokemon());
+  if (el.gallerySearchInput && el.gallerySearchInput.value !== gallerySearchQuery) {
+    el.gallerySearchInput.value = gallerySearchQuery;
+  }
+  if (el.gallerySortSelect && el.gallerySortSelect.value !== selectedGallerySort) {
+    el.gallerySortSelect.value = selectedGallerySort;
+  }
 
   if (!completedPokemonList.length) {
     el.gallery.innerHTML = '<p class="small">Aucun dessin.</p>';
@@ -1050,27 +1093,22 @@ function renderGallery() {
   }
 
   if (!visiblePokemon.length) {
-    el.gallery.innerHTML = '<p class="small">Aucun dessin pour ce pseudo.</p>';
+    el.gallery.innerHTML = '<p class="small">Aucun dessin trouvé avec ces filtres.</p>';
     return;
   }
 
   el.gallery.innerHTML = visiblePokemon.map((p) => {
     const authorName = getGalleryAuthorName(p);
-    const ratingAverage = getRatingAverage(p);
-    const ratingCount = getRatingCount(p);
-    const ratingSummary = ratingCount
-      ? `${ratingAverage.toFixed(1)}/5 · ${ratingCount} vote${ratingCount > 1 ? "s" : ""}`
-      : "Pas encore de note";
+    const completedDate = p.completedAt
+      ? new Date(p.completedAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
+      : null;
     return `
     <article class="gallery-item">
       <img src="${p.imageUrl}" alt="Dessin de ${p.name}" loading="lazy" />
       <div class="gallery-meta">
         <strong class="gallery-title">#${String(p.id).padStart(3, "0")} ${p.name}</strong>
         <div class="small gallery-author" title="Par ${escapeHtml(authorName)}">Par ${escapeHtml(authorName)}</div>
-        <div class="gallery-rating">
-          <div class="gallery-rating-row">${renderRatingStars(p)}</div>
-          <div class="small rating-stats">${ratingSummary}</div>
-        </div>
+        <div class="small gallery-date">${completedDate ? `Publié le ${completedDate}` : "Date inconnue"}</div>
         <button class="btn btn-secondary gallery-download-btn" type="button" data-id="${p.id}">
           Télécharger
         </button>
@@ -1116,40 +1154,6 @@ async function downloadPokemonImage(pokemonId) {
   } catch (err) {
     triggerDirectDownloadFallback(pokemon.imageUrl, fileName);
   }
-}
-
-function computeRatingAggregate(ratingsMap = {}) {
-  const values = Object.values(ratingsMap)
-    .map((value) => Number(value))
-    .filter((value) => Number.isInteger(value) && value >= GALLERY_RATING_MIN && value <= GALLERY_RATING_MAX);
-  if (!values.length) return { ratingAverage: 0, ratingCount: 0 };
-  const total = values.reduce((sum, value) => sum + value, 0);
-  return {
-    ratingAverage: Number((total / values.length).toFixed(2)),
-    ratingCount: values.length
-  };
-}
-
-async function submitPokemonRating(pokemonId, score) {
-  if (!currentUser?.uid) {
-    showToast("Connecte-toi pour noter les dessins.", true);
-    return;
-  }
-  if (!Number.isInteger(score) || score < GALLERY_RATING_MIN || score > GALLERY_RATING_MAX) return;
-  const pokemonRef = ref(db, `${generationPokemonPath()}/${pokemonId}`);
-  await runTransaction(pokemonRef, (pokemon) => {
-    if (!pokemon || !pokemon.imageUrl) return pokemon;
-    const ratings = { ...(pokemon.ratings || {}) };
-    ratings[currentUser.uid] = score;
-    const aggregate = computeRatingAggregate(ratings);
-    return {
-      ...pokemon,
-      ratings,
-      ratingAverage: aggregate.ratingAverage,
-      ratingCount: aggregate.ratingCount,
-      ratingUpdatedAt: Date.now()
-    };
-  });
 }
 
 function computeFresqueLayout(total, mode, value, widthPx = 0, heightPx = 0) {
@@ -1632,6 +1636,8 @@ function fileToDataUrl(file) {
 function bindPokemonFeed() {
   if (unbindPokemonFeed) unbindPokemonFeed();
   selectedGalleryAuthor = loadGalleryAuthorFilter();
+  gallerySearchQuery = loadGallerySearchQuery();
+  selectedGallerySort = loadGallerySort();
   unbindPokemonFeed = onValue(ref(db, generationPokemonPath()), (snap) => {
     const allPokemon = snap.val() || {};
     Object.values(allPokemon).forEach((pokemon) => {
@@ -2215,20 +2221,8 @@ function bindEvents() {
       showToast(err.message || "Upload impossible.", true);
     }
   });
-  el.gallery.addEventListener("click", async (e) => {
-    const starButton = e.target.closest('[data-action="rate"]');
-    if (starButton) {
-      const pokemonId = Number(starButton.dataset.id);
-      const score = Number(starButton.dataset.score);
-      try {
-        await submitPokemonRating(pokemonId, score);
-      } catch (err) {
-        logFirebaseError("ratePokemon", err);
-        showToast("Impossible d'enregistrer la note.", true);
-      }
-      return;
-    }
 
+  el.gallery.addEventListener("click", async (e) => {
     const button = e.target.closest(".gallery-download-btn");
     if (!button) return;
     const pokemonId = Number(button.dataset.id);
@@ -2246,6 +2240,16 @@ function bindEvents() {
   el.galleryAuthorFilter?.addEventListener("change", (e) => {
     selectedGalleryAuthor = e.target.value || GALLERY_FILTER_ALL_VALUE;
     saveGalleryAuthorFilter();
+    renderGallery();
+  });
+  el.gallerySearchInput?.addEventListener("input", (e) => {
+    gallerySearchQuery = (e.target.value || "").slice(0, 40);
+    saveGallerySearchQuery();
+    renderGallery();
+  });
+  el.gallerySortSelect?.addEventListener("change", (e) => {
+    selectedGallerySort = e.target.value || "recent";
+    saveGallerySort();
     renderGallery();
   });
 
