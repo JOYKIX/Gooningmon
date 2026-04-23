@@ -4,157 +4,156 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gooningmon · SPA</title>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:FILL@0..1" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Material+Symbols+Rounded:FILL@0..1" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div class="bg-decor" aria-hidden="true"></div>
 
-    <header class="topbar shell">
-      <div class="brand">
-        <span class="material-symbols-rounded brand-icon" aria-hidden="true">pets</span>
-        <h1>Gooningmon</h1>
+    <header class="topbar">
+      <div class="topbar-inner shell">
+        <div class="brand">
+          <span class="material-symbols-rounded brand-icon" aria-hidden="true">pets</span>
+          <h1>Gooningmon</h1>
+        </div>
+        <nav class="nav-tabs" aria-label="Navigation principale">
+          <button class="nav-tab" data-route="/" type="button">Accueil</button>
+          <button class="nav-tab" data-route="/galerie" type="button">Galerie</button>
+          <button class="nav-tab" data-route="/fresque" type="button">Fresque</button>
+          <button class="nav-tab" data-route="/dessins" type="button">Dessins</button>
+          <button id="adminNavTab" class="nav-tab hidden" data-route="/admin" type="button">Admin</button>
+        </nav>
+        <div class="topbar-account">
+          <img id="topbarUserPhoto" class="topbar-avatar hidden" alt="Avatar" />
+          <div>
+            <p id="topbarUserName" class="label">Invité</p>
+            <p id="topbarUserRole" class="micro">Non connecté</p>
+          </div>
+        </div>
       </div>
-      <nav class="nav-tabs" aria-label="Navigation principale">
-        <button class="nav-tab" data-route="/" type="button"><span class="material-symbols-rounded" aria-hidden="true">home</span>Accueil</button>
-        <button class="nav-tab" data-route="/galerie" type="button"><span class="material-symbols-rounded" aria-hidden="true">photo_library</span>Galerie</button>
-        <button class="nav-tab" data-route="/fresque" type="button"><span class="material-symbols-rounded" aria-hidden="true">grid_view</span>Fresque</button>
-        <button class="nav-tab" data-route="/dessins" type="button"><span class="material-symbols-rounded" aria-hidden="true">draw</span>Dessins</button>
-      </nav>
     </header>
 
     <main class="container shell page-transition">
       <section id="view-home" class="route-view">
-        <div class="grid-home">
-          <section id="authSection" class="card auth-card">
-            <h2>Compte</h2>
+        <div class="page-header">
+          <div>
+            <p class="label">Dashboard</p>
+            <h2 class="h1">Bienvenue <span id="welcomeText">Compte</span></h2>
+            <p id="statusText" class="small">Connecte-toi pour démarrer ton run créatif.</p>
+          </div>
+          <span id="authStatus" class="badge role">Non connecté</span>
+        </div>
 
-            <div id="authLoggedOut" class="auth-state">
-              <button id="googleLoginBtn" class="btn btn-google" type="button"><span class="material-symbols-rounded" aria-hidden="true">login</span>Connexion Google</button>
-            </div>
-
-            <div id="authLoggedIn" class="auth-state hidden">
-              <div class="auth-user">
-                <img id="authUserPhoto" class="auth-avatar hidden" alt="Avatar du compte" />
-                <div>
-                  <strong id="authUserName">Compte connecté</strong>
-                  <p id="authUserEmail" class="small"></p>
-                </div>
-              </div>
-
-              <form id="nicknameForm" class="nickname-form">
-                <label for="nicknameInput" class="small">Pseudo</label>
-                <div class="nickname-row">
-                  <input id="nicknameInput" type="text" maxlength="30" placeholder="Pseudo" required />
-                  <button id="nicknameBtn" type="submit" class="btn btn-secondary">Valider</button>
-                </div>
-              </form>
-
-              <button id="logoutBtn" class="btn btn-ghost" type="button"><span class="material-symbols-rounded" aria-hidden="true">logout</span>Logout</button>
-            </div>
-
-            <p id="authStatus" class="small"></p>
-          </section>
-
-          <section id="appSection" class="hidden stack">
-            <section class="card hero-card">
-              <h2 id="welcomeText">Compte</h2>
-              <p id="statusText"></p>
-            </section>
-
-            <div class="grid-2">
-              <section class="card pokemon-section">
-                <h2>Mon Pokémon</h2>
-                <div id="pokemonCard" class="pokemon-card muted">Aucun Pokémon.</div>
-                <div class="action-row">
-                  <button id="assignBtn" type="button" class="btn"><span class="material-symbols-rounded" aria-hidden="true">shuffle</span>Aléatoire</button>
-                  <button id="rerollBtn" class="btn btn-secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">refresh</span>Reroll</button>
-                  <button id="restartBtn" class="btn btn-ghost hidden" type="button"><span class="material-symbols-rounded" aria-hidden="true">replay</span>Recommencer</button>
-                </div>
+        <div class="home-grid">
+          <div class="home-main-col">
+            <section class="card card-elevated pokemon-hero">
+              <div class="card-head">
+                <h3>Mon Pokémon</h3>
                 <p id="rerollInfo" class="small"></p>
-              </section>
-
-              <section class="card upload-card">
-                <h2>Upload</h2>
-                <form id="uploadForm" class="form-stack">
-                  <label for="drawingFile" class="file-trigger"><span class="material-symbols-rounded" aria-hidden="true">upload_file</span>Choisir un fichier</label>
-                  <input id="drawingFile" class="file-input" type="file" accept="image/*" required />
-                  <p class="small">Image 500 x 500 px</p>
-                  <p id="uploadFileInfo" class="small">Aucun fichier.</p>
-                  <button id="uploadBtn" type="submit" class="btn"><span class="material-symbols-rounded" aria-hidden="true">send</span>Envoyer</button>
-                </form>
-                <p id="uploadState" class="small">Prêt.</p>
-              </section>
-            </div>
-
-            <section id="adminSection" class="card hidden">
-              <h2>Admin</h2>
-              <div class="admin-tools">
-                <button id="downloadGenerationZipBtn" class="btn" type="button"><span class="material-symbols-rounded" aria-hidden="true">download</span>Télécharger ZIP</button>
-                <div class="admin-zip-import">
-                  <input id="importGenerationZipInput" type="file" accept=".zip,application/zip" class="hidden" />
-                  <button id="importGenerationZipBtn" class="btn btn-secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">upload</span>Importer ZIP</button>
-                </div>
-                <form id="adminAssignForm" class="admin-assign-form">
-                  <label for="adminAssignNumber">Numéro</label>
-                  <input id="adminAssignNumber" type="text" inputmode="numeric" maxlength="3" />
-                  <label for="adminAssignName">Nom</label>
-                  <input id="adminAssignName" type="text" maxlength="30" />
-                  <label for="adminAssignPseudo">Pseudo</label>
-                  <input id="adminAssignPseudo" type="text" maxlength="30" />
-                  <button id="adminAssignBtn" type="submit" class="btn">Attribuer</button>
-                </form>
-                <div class="admin-generation-row">
-                  <select id="generationSelect">
-                    <option value="gen1">Gen 1</option>
-                    <option value="gen2">Gen 2</option>
-                    <option value="gen3">Gen 3</option>
-                    <option value="gen4">Gen 4</option>
-                    <option value="gen5">Gen 5</option>
-                    <option value="gen6">Gen 6</option>
-                    <option value="gen7">Gen 7</option>
-                    <option value="gen8">Gen 8</option>
-                    <option value="gen9">Gen 9</option>
-                  </select>
-                  <button id="changeGenerationBtn" class="btn btn-secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">published_with_changes</span>Changer</button>
-                </div>
               </div>
-              <div id="adminList" class="admin-list"></div>
+              <div id="pokemonCard" class="pokemon-card muted">Aucun Pokémon.</div>
+              <div class="action-row">
+                <button id="assignBtn" type="button" class="btn btn-secondary">Aléatoire</button>
+                <button id="rerollBtn" class="btn" type="button">Reroll</button>
+                <button id="restartBtn" class="btn btn-ghost hidden" type="button">Recommencer</button>
+              </div>
             </section>
-          </section>
+
+            <section class="card card-panel">
+              <div class="card-head">
+                <h3>Activité récente</h3>
+              </div>
+              <div class="stats-grid">
+                <article class="stat-item">
+                  <p class="micro">Dernier upload</p>
+                  <p id="uploadFileInfo" class="body-small">Aucun fichier.</p>
+                </article>
+                <article class="stat-item">
+                  <p class="micro">État envoi</p>
+                  <p id="uploadState" class="body-small">Prêt.</p>
+                </article>
+              </div>
+            </section>
+          </div>
+
+          <div class="home-side-col">
+            <section id="authSection" class="card auth-card">
+              <div class="card-head"><h3>Compte</h3></div>
+              <div id="authLoggedOut" class="auth-state">
+                <button id="googleLoginBtn" class="btn btn-secondary" type="button">Connexion Google</button>
+              </div>
+
+              <div id="authLoggedIn" class="auth-state hidden">
+                <div class="auth-user">
+                  <img id="authUserPhoto" class="auth-avatar hidden" alt="Avatar du compte" />
+                  <div>
+                    <strong id="authUserName">Compte connecté</strong>
+                    <p id="authUserEmail" class="small"></p>
+                  </div>
+                </div>
+
+                <form id="nicknameForm" class="form-stack">
+                  <label for="nicknameInput" class="label">Pseudo</label>
+                  <div class="nickname-row">
+                    <input id="nicknameInput" type="text" maxlength="30" placeholder="Pseudo" required />
+                    <button id="nicknameBtn" type="submit" class="btn btn-secondary">Valider</button>
+                  </div>
+                </form>
+
+                <button id="logoutBtn" class="btn btn-ghost" type="button">Logout</button>
+              </div>
+            </section>
+
+            <section id="appSection" class="card upload-card hidden">
+              <div class="card-head">
+                <h3>Upload dessin</h3>
+              </div>
+              <form id="uploadForm" class="form-stack">
+                <label for="drawingFile" class="dropzone">
+                  <span class="material-symbols-rounded" aria-hidden="true">cloud_upload</span>
+                  <span>Glisse ton image ou clique pour choisir</span>
+                  <span class="small">Image 500×500 px recommandée</span>
+                </label>
+                <input id="drawingFile" class="file-input" type="file" accept="image/*" required />
+                <button id="uploadBtn" type="submit" class="btn">Envoyer le dessin</button>
+              </form>
+            </section>
+          </div>
         </div>
       </section>
 
       <section id="view-galerie" class="route-view hidden">
-        <section class="card">
-          <div class="gallery-head">
-            <div class="gallery-head-main">
-              <h2>Galerie</h2>
-              <p id="galleryProgress" class="small gallery-progress">0/151 (0%)</p>
-              <p class="small">Explore les créations, filtre rapidement et télécharge les dessins que tu préfères.</p>
+        <div class="page-header">
+          <div>
+            <p class="label">Communauté</p>
+            <h2 class="h1">Galerie</h2>
+            <p class="small">Explore les œuvres publiées, filtre rapidement et télécharge les visuels.</p>
+          </div>
+          <p id="galleryProgress" class="badge">0/151 (0%)</p>
+        </div>
+
+        <section class="card card-panel">
+          <div class="gallery-filter-grid">
+            <div class="field-group">
+              <label for="galleryAuthorFilter" class="label">Pseudo</label>
+              <select id="galleryAuthorFilter" aria-label="Filtrer par pseudo">
+                <option value="__all__">Tous les pseudos</option>
+              </select>
             </div>
-            <div class="gallery-filter-grid">
-              <div class="gallery-filter">
-                <label for="galleryAuthorFilter" class="small">Filtrer par pseudo</label>
-                <select id="galleryAuthorFilter" aria-label="Filtrer par pseudo">
-                  <option value="__all__">Tous les pseudos</option>
-                </select>
-              </div>
-              <div class="gallery-filter">
-                <label for="gallerySearchInput" class="small">Rechercher</label>
-                <input id="gallerySearchInput" type="search" placeholder="Nom ou numéro Pokémon" aria-label="Rechercher un dessin par nom ou numéro" />
-              </div>
-              <div class="gallery-filter">
-                <label for="gallerySortSelect" class="small">Trier</label>
-                <select id="gallerySortSelect" aria-label="Trier les dessins">
-                  <option value="recent">Plus récents</option>
-                  <option value="oldest">Plus anciens</option>
-                  <option value="number-asc">Numéro croissant</option>
-                  <option value="number-desc">Numéro décroissant</option>
-                  <option value="name-asc">Nom A → Z</option>
-                  <option value="name-desc">Nom Z → A</option>
-                </select>
-              </div>
+            <div class="field-group">
+              <label for="gallerySearchInput" class="label">Rechercher</label>
+              <input id="gallerySearchInput" type="search" placeholder="Nom ou numéro Pokémon" aria-label="Rechercher un dessin par nom ou numéro" />
+            </div>
+            <div class="field-group">
+              <label for="gallerySortSelect" class="label">Trier</label>
+              <select id="gallerySortSelect" aria-label="Trier les dessins">
+                <option value="recent">Plus récents</option>
+                <option value="oldest">Plus anciens</option>
+                <option value="number-asc">Numéro croissant</option>
+                <option value="number-desc">Numéro décroissant</option>
+                <option value="name-asc">Nom A → Z</option>
+                <option value="name-desc">Nom Z → A</option>
+              </select>
             </div>
           </div>
           <div id="gallery" class="gallery"></div>
@@ -162,15 +161,19 @@
       </section>
 
       <section id="view-fresque" class="route-view hidden">
-        <section class="card fresque-card">
-          <div class="fresque-head">
-            <h2>Fresque</h2>
-            <button id="downloadFresqueBtn" class="btn btn-secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">download</span>Télécharger</button>
+        <div class="page-header">
+          <div>
+            <p class="label">Composition</p>
+            <h2 class="h1">Fresque</h2>
+            <p class="small">Prépare une mosaïque exportable avec des presets optimisés.</p>
           </div>
+          <button id="downloadFresqueBtn" class="btn btn-secondary" type="button">Télécharger</button>
+        </div>
 
+        <section class="card card-panel fresque-card">
           <form id="fresqueForm" class="fresque-controls">
-            <label>
-              Mode
+            <label class="field-group">
+              <span class="label">Mode</span>
               <select id="fresqueMode">
                 <option value="auto">Auto</option>
                 <option value="columns">Colonnes</option>
@@ -178,121 +181,138 @@
                 <option value="dimensions">Dimensions (px)</option>
               </select>
             </label>
-            <label>
-              Valeur
-              <input id="fresqueValue" type="number" min="1" value="5" />
-            </label>
-            <label>
-              Largeur (px)
-              <input id="fresqueWidth" type="number" min="100" step="10" value="1920" />
-            </label>
-            <label>
-              Hauteur (px)
-              <input id="fresqueHeight" type="number" min="100" step="10" value="1080" />
-            </label>
+            <label class="field-group"><span class="label">Densité</span><input id="fresqueValue" type="number" min="1" value="5" /></label>
+            <label class="field-group"><span class="label">Largeur</span><input id="fresqueWidth" type="number" min="100" step="10" value="1920" /></label>
+            <label class="field-group"><span class="label">Hauteur</span><input id="fresqueHeight" type="number" min="100" step="10" value="1080" /></label>
           </form>
-
-          <div id="fresqueInfoToggles" class="fresque-info-toggles">
-            <label class="check-pill" for="fresqueShowNumber">
-              <input id="fresqueShowNumber" type="checkbox" checked />
-              <span class="check-ui" aria-hidden="true"></span>
-              <span>Numéro</span>
-            </label>
-            <label class="check-pill" for="fresqueShowName">
-              <input id="fresqueShowName" type="checkbox" checked />
-              <span class="check-ui" aria-hidden="true"></span>
-              <span>Nom</span>
-            </label>
-            <label class="check-pill" for="fresqueShowPseudo">
-              <input id="fresqueShowPseudo" type="checkbox" checked />
-              <span class="check-ui" aria-hidden="true"></span>
-              <span>Pseudo</span>
-            </label>
+          <div class="fresque-toolbar-row">
+            <div id="fresqueInfoToggles" class="fresque-info-toggles">
+              <label class="check-pill" for="fresqueShowNumber"><input id="fresqueShowNumber" type="checkbox" checked />Numéro</label>
+              <label class="check-pill" for="fresqueShowName"><input id="fresqueShowName" type="checkbox" checked />Nom</label>
+              <label class="check-pill" for="fresqueShowPseudo"><input id="fresqueShowPseudo" type="checkbox" checked />Pseudo</label>
+            </div>
+            <div class="fresque-presets">
+              <button type="button" class="btn btn-ghost" data-fresque-preset="compact">Compact</button>
+              <button type="button" class="btn btn-ghost" data-fresque-preset="comfortable">Comfortable</button>
+              <button type="button" class="btn btn-ghost" data-fresque-preset="poster">Poster</button>
+              <button id="fresqueResetBtn" type="button" class="btn btn-secondary">Reset</button>
+            </div>
           </div>
-
           <p id="fresqueInfo" class="small"></p>
-          <div id="fresqueGrid" class="fresque-grid"></div>
+          <div class="fresque-preview-wrap">
+            <div id="fresqueGrid" class="fresque-grid"></div>
+          </div>
         </section>
       </section>
 
       <section id="view-dessins" class="route-view hidden">
-        <section class="card drawings-card">
-          <div class="drawings-head">
-            <h2>Dessins</h2>
-            <p class="small">Mode pixel-art/line-art avec calques, opacité et palette perso (10 couleurs max).</p>
+        <div class="page-header">
+          <div>
+            <p class="label">Studio</p>
+            <h2 class="h1">Dessins</h2>
+            <p class="small">Mini outil créatif avec calques, palette et export PNG.</p>
           </div>
+          <div class="drawings-head-actions">
+            <button id="drawingDownloadBtn" type="button" class="btn btn-secondary">Télécharger PNG</button>
+            <button id="drawingUploadBtn" type="button" class="btn">Envoyer le dessin</button>
+          </div>
+        </div>
 
-          <div class="drawings-studio">
-            <div class="drawings-main">
-              <div class="drawings-tools">
-                <div class="tool-group">
-                  <button id="drawingToolBrushBtn" type="button" class="btn btn-secondary tool-btn active">Pinceau</button>
-                  <button id="drawingToolEraserBtn" type="button" class="btn btn-secondary tool-btn">Gomme</button>
-                  <button id="drawingToolFillBtn" type="button" class="btn btn-secondary tool-btn">Pot de peinture</button>
-                  <button id="drawingToolPickerBtn" type="button" class="btn btn-secondary tool-btn">Pipette</button>
-                </div>
-                <div class="tool-group">
-                  <button id="drawingUndoBtn" type="button" class="btn btn-ghost">Annuler</button>
-                  <button id="drawingRedoBtn" type="button" class="btn btn-ghost">Rétablir</button>
-                  <button id="drawingClearLayerBtn" type="button" class="btn btn-ghost">Effacer calque</button>
-                </div>
-                <label>
-                  Couleur active
-                  <input id="drawingColor" type="color" value="#111111" />
-                </label>
-                <label>
-                  Taille pinceau
-                  <input id="drawingBrushSize" type="range" min="1" max="60" value="6" />
-                </label>
-                <label>
-                  Opacité pinceau
-                  <input id="drawingBrushOpacity" type="range" min="1" max="100" value="100" />
-                </label>
-              </div>
+        <section class="drawings-studio card card-elevated">
+          <aside class="drawing-tools-panel">
+            <button id="drawingToolBrushBtn" type="button" class="icon-tool active" aria-label="Pinceau">brush</button>
+            <button id="drawingToolEraserBtn" type="button" class="icon-tool" aria-label="Gomme">ink_eraser</button>
+            <button id="drawingToolFillBtn" type="button" class="icon-tool" aria-label="Pot de peinture">format_color_fill</button>
+            <button id="drawingToolPickerBtn" type="button" class="icon-tool" aria-label="Pipette">colorize</button>
+            <button id="drawingUndoBtn" type="button" class="icon-tool" aria-label="Annuler">undo</button>
+            <button id="drawingRedoBtn" type="button" class="icon-tool" aria-label="Rétablir">redo</button>
+            <button id="drawingClearLayerBtn" type="button" class="icon-tool" aria-label="Effacer calque">layers_clear</button>
+          </aside>
 
-              <div class="drawing-palette card-subsection">
-                <div class="palette-head">
-                  <strong>Palette perso</strong>
-                  <button id="drawingAddPaletteColorBtn" type="button" class="btn btn-ghost">+ Ajouter couleur</button>
-                </div>
-                <div id="drawingPaletteSwatches" class="palette-swatches"></div>
-                <p class="small">Clique gauche: utiliser. Clique droit: supprimer.</p>
-              </div>
-
-              <div class="drawing-canvas-wrap">
-                <canvas id="drawingCanvas" width="500" height="500" aria-label="Zone de dessin"></canvas>
-              </div>
+          <div class="drawings-main">
+            <div class="drawings-toolbar card-subsection">
+              <label class="field-group"><span class="label">Couleur active</span><input id="drawingColor" type="color" value="#111111" /></label>
+              <label class="field-group"><span class="label">Taille pinceau</span><input id="drawingBrushSize" type="range" min="1" max="60" value="6" /></label>
+              <label class="field-group"><span class="label">Opacité pinceau</span><input id="drawingBrushOpacity" type="range" min="1" max="100" value="100" /></label>
             </div>
-
-            <aside class="drawing-layers card-subsection">
-              <div class="layers-head">
-                <strong>Calques</strong>
-                <button id="drawingAddLayerBtn" type="button" class="btn btn-ghost">+ Calque</button>
-              </div>
-              <div id="drawingLayerList" class="layer-list"></div>
-              <div class="layer-actions">
-                <button id="drawingLayerUpBtn" type="button" class="btn btn-ghost">Monter</button>
-                <button id="drawingLayerDownBtn" type="button" class="btn btn-ghost">Descendre</button>
-                <button id="drawingDeleteLayerBtn" type="button" class="btn btn-ghost">Supprimer</button>
-              </div>
-              <label>
-                Opacité du calque actif
-                <input id="drawingLayerOpacity" type="range" min="0" max="100" value="100" />
-              </label>
-            </aside>
+            <div class="drawing-canvas-wrap">
+              <canvas id="drawingCanvas" width="500" height="500" aria-label="Zone de dessin"></canvas>
+            </div>
+            <p id="drawingStatus" class="small">Prêt à dessiner.</p>
           </div>
 
-          <div class="drawings-actions">
-            <button id="drawingDownloadBtn" type="button" class="btn btn-secondary"><span class="material-symbols-rounded" aria-hidden="true">download</span>Télécharger PNG</button>
-            <button id="drawingUploadBtn" type="button" class="btn"><span class="material-symbols-rounded" aria-hidden="true">cloud_upload</span>Envoyer le dessin</button>
+          <aside class="drawing-layers card-subsection">
+            <div class="layers-head">
+              <strong>Palette</strong>
+              <button id="drawingAddPaletteColorBtn" type="button" class="btn btn-ghost">Ajouter couleur</button>
+            </div>
+            <div id="drawingPaletteSwatches" class="palette-swatches"></div>
+            <p class="small">Clic gauche: utiliser · Clic droit: supprimer</p>
+            <div class="layers-head mt-16">
+              <strong>Calques</strong>
+              <button id="drawingAddLayerBtn" type="button" class="btn btn-ghost">+ Calque</button>
+            </div>
+            <div id="drawingLayerList" class="layer-list"></div>
+            <div class="layer-actions">
+              <button id="drawingLayerUpBtn" type="button" class="btn btn-ghost">Monter</button>
+              <button id="drawingLayerDownBtn" type="button" class="btn btn-ghost">Descendre</button>
+              <button id="drawingDeleteLayerBtn" type="button" class="btn btn-danger">Supprimer</button>
+            </div>
+            <label class="field-group"><span class="label">Opacité calque actif</span><input id="drawingLayerOpacity" type="range" min="0" max="100" value="100" /></label>
+          </aside>
+        </section>
+      </section>
+
+      <section id="view-admin" class="route-view hidden">
+        <div class="page-header">
+          <div>
+            <p class="label">Gestion</p>
+            <h2 class="h1">Administration</h2>
+            <p class="small">Import/export des données et actions de modération.</p>
           </div>
-          <p id="drawingStatus" class="small">Prêt à dessiner.</p>
+          <span class="badge role">Admin</span>
+        </div>
+
+        <section id="adminSection" class="card card-panel hidden">
+          <div class="admin-grid">
+            <section class="card-subsection">
+              <h3>Import / Export</h3>
+              <div class="admin-tools">
+                <button id="downloadGenerationZipBtn" class="btn btn-secondary" type="button">Télécharger ZIP</button>
+                <input id="importGenerationZipInput" type="file" accept=".zip,application/zip" class="hidden" />
+                <button id="importGenerationZipBtn" class="btn" type="button">Importer ZIP</button>
+              </div>
+            </section>
+
+            <section class="card-subsection">
+              <h3>Attribution manuelle</h3>
+              <form id="adminAssignForm" class="admin-assign-form">
+                <label for="adminAssignNumber" class="label">Numéro</label>
+                <input id="adminAssignNumber" type="text" inputmode="numeric" maxlength="3" />
+                <label for="adminAssignName" class="label">Nom</label>
+                <input id="adminAssignName" type="text" maxlength="30" />
+                <label for="adminAssignPseudo" class="label">Pseudo</label>
+                <input id="adminAssignPseudo" type="text" maxlength="30" />
+                <button id="adminAssignBtn" type="submit" class="btn">Attribuer</button>
+              </form>
+            </section>
+
+            <section class="card-subsection">
+              <h3>Génération</h3>
+              <div class="admin-generation-row">
+                <select id="generationSelect">
+                  <option value="gen1">Gen 1</option><option value="gen2">Gen 2</option><option value="gen3">Gen 3</option><option value="gen4">Gen 4</option><option value="gen5">Gen 5</option><option value="gen6">Gen 6</option><option value="gen7">Gen 7</option><option value="gen8">Gen 8</option><option value="gen9">Gen 9</option>
+                </select>
+                <button id="changeGenerationBtn" class="btn btn-secondary" type="button">Changer</button>
+              </div>
+            </section>
+          </div>
+          <div id="adminList" class="admin-list"></div>
         </section>
       </section>
     </main>
 
     <div id="toast" class="toast hidden"></div>
-
     <script type="module" src="app.js"></script>
   </body>
 </html>
