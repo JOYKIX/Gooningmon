@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gooningmon · SPA</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:FILL@0..1" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -11,13 +12,14 @@
 
     <header class="topbar shell">
       <div class="brand">
+        <span class="material-symbols-rounded brand-icon" aria-hidden="true">pets</span>
         <h1>Gooningmon</h1>
       </div>
       <nav class="nav-tabs" aria-label="Navigation principale">
-        <button class="nav-tab" data-route="/" type="button">Accueil</button>
-        <button class="nav-tab" data-route="/galerie" type="button">Galerie</button>
-        <button class="nav-tab" data-route="/fresque" type="button">Fresque</button>
-        <button class="nav-tab" data-route="/dessins" type="button">Dessins</button>
+        <button class="nav-tab" data-route="/" type="button"><span class="material-symbols-rounded" aria-hidden="true">home</span>Accueil</button>
+        <button class="nav-tab" data-route="/galerie" type="button"><span class="material-symbols-rounded" aria-hidden="true">photo_library</span>Galerie</button>
+        <button class="nav-tab" data-route="/fresque" type="button"><span class="material-symbols-rounded" aria-hidden="true">grid_view</span>Fresque</button>
+        <button class="nav-tab" data-route="/dessins" type="button"><span class="material-symbols-rounded" aria-hidden="true">draw</span>Dessins</button>
       </nav>
     </header>
 
@@ -28,7 +30,7 @@
             <h2>Compte</h2>
 
             <div id="authLoggedOut" class="auth-state">
-              <button id="googleLoginBtn" class="btn btn-google" type="button">Connexion Google</button>
+              <button id="googleLoginBtn" class="btn btn-google" type="button"><span class="material-symbols-rounded" aria-hidden="true">login</span>Connexion Google</button>
             </div>
 
             <div id="authLoggedIn" class="auth-state hidden">
@@ -48,7 +50,7 @@
                 </div>
               </form>
 
-              <button id="logoutBtn" class="btn btn-ghost" type="button">Logout</button>
+              <button id="logoutBtn" class="btn btn-ghost" type="button"><span class="material-symbols-rounded" aria-hidden="true">logout</span>Logout</button>
             </div>
 
             <p id="authStatus" class="small"></p>
@@ -65,9 +67,9 @@
                 <h2>Mon Pokémon</h2>
                 <div id="pokemonCard" class="pokemon-card muted">Aucun Pokémon.</div>
                 <div class="action-row">
-                  <button id="assignBtn" type="button" class="btn">Aléatoire</button>
-                  <button id="rerollBtn" class="btn btn-secondary" type="button">Reroll</button>
-                  <button id="restartBtn" class="btn btn-ghost hidden" type="button">Recommencer</button>
+                  <button id="assignBtn" type="button" class="btn"><span class="material-symbols-rounded" aria-hidden="true">shuffle</span>Aléatoire</button>
+                  <button id="rerollBtn" class="btn btn-secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">refresh</span>Reroll</button>
+                  <button id="restartBtn" class="btn btn-ghost hidden" type="button"><span class="material-symbols-rounded" aria-hidden="true">replay</span>Recommencer</button>
                 </div>
                 <p id="rerollInfo" class="small"></p>
               </section>
@@ -75,11 +77,11 @@
               <section class="card upload-card">
                 <h2>Upload</h2>
                 <form id="uploadForm" class="form-stack">
-                  <label for="drawingFile" class="file-trigger">Choisir un fichier</label>
+                  <label for="drawingFile" class="file-trigger"><span class="material-symbols-rounded" aria-hidden="true">upload_file</span>Choisir un fichier</label>
                   <input id="drawingFile" class="file-input" type="file" accept="image/*" required />
                   <p class="small">Image 500 x 500 px</p>
                   <p id="uploadFileInfo" class="small">Aucun fichier.</p>
-                  <button id="uploadBtn" type="submit" class="btn">Envoyer</button>
+                  <button id="uploadBtn" type="submit" class="btn"><span class="material-symbols-rounded" aria-hidden="true">send</span>Envoyer</button>
                 </form>
                 <p id="uploadState" class="small">Prêt.</p>
               </section>
@@ -88,10 +90,10 @@
             <section id="adminSection" class="card hidden">
               <h2>Admin</h2>
               <div class="admin-tools">
-                <button id="downloadGenerationZipBtn" class="btn" type="button">Télécharger ZIP</button>
+                <button id="downloadGenerationZipBtn" class="btn" type="button"><span class="material-symbols-rounded" aria-hidden="true">download</span>Télécharger ZIP</button>
                 <div class="admin-zip-import">
                   <input id="importGenerationZipInput" type="file" accept=".zip,application/zip" class="hidden" />
-                  <button id="importGenerationZipBtn" class="btn btn-secondary" type="button">Importer ZIP</button>
+                  <button id="importGenerationZipBtn" class="btn btn-secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">upload</span>Importer ZIP</button>
                 </div>
                 <form id="adminAssignForm" class="admin-assign-form">
                   <label for="adminAssignNumber">Numéro</label>
@@ -114,7 +116,7 @@
                     <option value="gen8">Gen 8</option>
                     <option value="gen9">Gen 9</option>
                   </select>
-                  <button id="changeGenerationBtn" class="btn btn-secondary" type="button">Changer</button>
+                  <button id="changeGenerationBtn" class="btn btn-secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">published_with_changes</span>Changer</button>
                 </div>
               </div>
               <div id="adminList" class="admin-list"></div>
@@ -129,6 +131,7 @@
             <div class="gallery-head-main">
               <h2>Galerie</h2>
               <p id="galleryProgress" class="small gallery-progress">0/151 (0%)</p>
+              <p class="small">Explore les créations et note tes dessins préférés sur 5 étoiles.</p>
             </div>
             <div class="gallery-filter">
               <label for="galleryAuthorFilter" class="small">Filtrer par pseudo</label>
@@ -145,7 +148,7 @@
         <section class="card fresque-card">
           <div class="fresque-head">
             <h2>Fresque</h2>
-            <button id="downloadFresqueBtn" class="btn btn-secondary" type="button">Télécharger</button>
+            <button id="downloadFresqueBtn" class="btn btn-secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">download</span>Télécharger</button>
           </div>
 
           <form id="fresqueForm" class="fresque-controls">
@@ -263,8 +266,8 @@
           </div>
 
           <div class="drawings-actions">
-            <button id="drawingDownloadBtn" type="button" class="btn btn-secondary">Télécharger PNG</button>
-            <button id="drawingUploadBtn" type="button" class="btn">Envoyer le dessin</button>
+            <button id="drawingDownloadBtn" type="button" class="btn btn-secondary"><span class="material-symbols-rounded" aria-hidden="true">download</span>Télécharger PNG</button>
+            <button id="drawingUploadBtn" type="button" class="btn"><span class="material-symbols-rounded" aria-hidden="true">cloud_upload</span>Envoyer le dessin</button>
           </div>
           <p id="drawingStatus" class="small">Prêt à dessiner.</p>
         </section>
