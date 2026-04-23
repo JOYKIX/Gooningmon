@@ -42,7 +42,8 @@ const ROUTES = {
   "/": "view-home",
   "/galerie": "view-galerie",
   "/fresque": "view-fresque",
-  "/dessins": "view-dessins"
+  "/dessins": "view-dessins",
+  "/admin": "view-admin"
 };
 
 function generationRootPath(generation = activeGeneration) {
@@ -72,6 +73,10 @@ const el = {
   pageContainer: document.querySelector(".page-transition"),
   routeViews: document.querySelectorAll(".route-view"),
   navTabs: document.querySelectorAll(".nav-tab"),
+  adminNavTab: document.getElementById("adminNavTab"),
+  topbarUserPhoto: document.getElementById("topbarUserPhoto"),
+  topbarUserName: document.getElementById("topbarUserName"),
+  topbarUserRole: document.getElementById("topbarUserRole"),
   authLoggedOut: document.getElementById("authLoggedOut"),
   authLoggedIn: document.getElementById("authLoggedIn"),
   authUserPhoto: document.getElementById("authUserPhoto"),
@@ -112,6 +117,8 @@ const el = {
   fresqueShowName: document.getElementById("fresqueShowName"),
   fresqueShowPseudo: document.getElementById("fresqueShowPseudo"),
   downloadFresqueBtn: document.getElementById("downloadFresqueBtn"),
+  fresqueResetBtn: document.getElementById("fresqueResetBtn"),
+  fresquePresetButtons: document.querySelectorAll("[data-fresque-preset]"),
   drawingCanvas: document.getElementById("drawingCanvas"),
   drawingColor: document.getElementById("drawingColor"),
   drawingBrushSize: document.getElementById("drawingBrushSize"),
@@ -811,9 +818,16 @@ function renderAuthState() {
     el.authUserPhoto.removeAttribute("src");
     el.authUserName.textContent = "Compte";
     el.authUserEmail.textContent = "";
+    if (el.topbarUserName) el.topbarUserName.textContent = "Invité";
+    if (el.topbarUserRole) el.topbarUserRole.textContent = "Non connecté";
+    if (el.topbarUserPhoto) {
+      el.topbarUserPhoto.classList.add("hidden");
+      el.topbarUserPhoto.removeAttribute("src");
+    }
     el.welcomeText.textContent = "Compte";
     el.statusText.textContent = "";
     el.adminSection.classList.add("hidden");
+    el.adminNavTab?.classList.add("hidden");
     el.rerollInfo.textContent = "";
     return;
   }
@@ -830,6 +844,15 @@ function renderAuthState() {
   }
 
   const roleLabel = currentUser.role === "admin" ? "Administrateur" : "Utilisateur";
+  if (el.topbarUserName) el.topbarUserName.textContent = currentUser.displayName || "Pseudo requis";
+  if (el.topbarUserRole) el.topbarUserRole.textContent = roleLabel;
+  if (el.topbarUserPhoto && currentUser.photoURL) {
+    el.topbarUserPhoto.src = currentUser.photoURL;
+    el.topbarUserPhoto.classList.remove("hidden");
+  } else if (el.topbarUserPhoto) {
+    el.topbarUserPhoto.classList.add("hidden");
+    el.topbarUserPhoto.removeAttribute("src");
+  }
   if (!hasNickname()) {
     el.authStatus.textContent = "Ajoute un pseudo.";
     el.welcomeText.textContent = "Pseudo requis";
@@ -840,6 +863,7 @@ function renderAuthState() {
     el.statusText.textContent = roleLabel;
   }
   el.adminSection.classList.toggle("hidden", !currentUser.isAdmin);
+  el.adminNavTab?.classList.toggle("hidden", !currentUser.isAdmin);
   el.downloadGenerationZipBtn.disabled = !currentUser.isAdmin;
   el.importGenerationZipBtn.disabled = !currentUser.isAdmin;
   el.importGenerationZipInput.disabled = !currentUser.isAdmin;
@@ -1088,12 +1112,12 @@ function renderGallery() {
   }
 
   if (!completedPokemonList.length) {
-    el.gallery.innerHTML = '<p class="small">Aucun dessin.</p>';
+    el.gallery.innerHTML = '<article class="card-subsection"><p class="small">Aucun dessin publié pour le moment.</p></article>';
     return;
   }
 
   if (!visiblePokemon.length) {
-    el.gallery.innerHTML = '<p class="small">Aucun dessin trouvé avec ces filtres.</p>';
+    el.gallery.innerHTML = '<article class="card-subsection"><p class="small">Aucun dessin trouvé avec ces filtres.</p></article>';
     return;
   }
 
@@ -1109,6 +1133,7 @@ function renderGallery() {
         <strong class="gallery-title">#${String(p.id).padStart(3, "0")} ${p.name}</strong>
         <div class="small gallery-author" title="Par ${escapeHtml(authorName)}">Par ${escapeHtml(authorName)}</div>
         <div class="small gallery-date">${completedDate ? `Publié le ${completedDate}` : "Date inconnue"}</div>
+        <div class="small gallery-rating">Note communauté · —</div>
         <button class="btn btn-secondary gallery-download-btn" type="button" data-id="${p.id}">
           Télécharger
         </button>
@@ -2270,6 +2295,33 @@ function bindEvents() {
     } catch (err) {
       showToast(err.message || "Export impossible.", true);
     }
+  });
+  el.fresquePresetButtons?.forEach((button) => {
+    button.addEventListener("click", () => {
+      const preset = button.dataset.fresquePreset;
+      if (preset === "compact") {
+        el.fresqueMode.value = "columns";
+        el.fresqueValue.value = "10";
+      } else if (preset === "comfortable") {
+        el.fresqueMode.value = "columns";
+        el.fresqueValue.value = "7";
+      } else if (preset === "poster") {
+        el.fresqueMode.value = "dimensions";
+        el.fresqueWidth.value = "2480";
+        el.fresqueHeight.value = "3508";
+      }
+      renderFresque();
+    });
+  });
+  el.fresqueResetBtn?.addEventListener("click", () => {
+    el.fresqueMode.value = "auto";
+    el.fresqueValue.value = "5";
+    el.fresqueWidth.value = "1920";
+    el.fresqueHeight.value = "1080";
+    el.fresqueShowNumber.checked = true;
+    el.fresqueShowName.checked = true;
+    el.fresqueShowPseudo.checked = true;
+    renderFresque();
   });
   el.downloadGenerationZipBtn.addEventListener("click", async () => {
     if (!currentUser?.isAdmin) return;
