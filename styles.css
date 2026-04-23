@@ -513,6 +513,56 @@ button.ghost:hover {
   gap: 0.6rem;
 }
 
+.drawings-card {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.drawings-head {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.drawings-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.drawings-tools label {
+  display: grid;
+  gap: 0.32rem;
+  min-width: 120px;
+  font-weight: 600;
+}
+
+.drawings-tools input[type="color"] {
+  padding: 0.2rem;
+  min-height: 40px;
+}
+
+.drawings-tools input[type="range"] {
+  accent-color: var(--red);
+}
+
+.drawing-canvas-wrap {
+  width: min(100%, 500px);
+  border: 1px solid #393939;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+#drawingCanvas {
+  width: 100%;
+  max-width: 500px;
+  aspect-ratio: 1 / 1;
+  display: block;
+  cursor: crosshair;
+  touch-action: none;
+}
+
 .check-pill {
   display: inline-flex;
   align-items: center;

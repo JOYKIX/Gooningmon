@@ -41,7 +41,8 @@ const REPO_BASE_PATH = "/Gooningmon";
 const ROUTES = {
   "/": "view-home",
   "/galerie": "view-galerie",
-  "/fresque": "view-fresque"
+  "/fresque": "view-fresque",
+  "/dessins": "view-dessins"
 };
 
 function generationRootPath(generation = activeGeneration) {
@@ -109,6 +110,14 @@ const el = {
   fresqueShowName: document.getElementById("fresqueShowName"),
   fresqueShowPseudo: document.getElementById("fresqueShowPseudo"),
   downloadFresqueBtn: document.getElementById("downloadFresqueBtn"),
+  drawingCanvas: document.getElementById("drawingCanvas"),
+  drawingColor: document.getElementById("drawingColor"),
+  drawingBrushSize: document.getElementById("drawingBrushSize"),
+  drawingEraserBtn: document.getElementById("drawingEraserBtn"),
+  drawingClearBtn: document.getElementById("drawingClearBtn"),
+  drawingDownloadBtn: document.getElementById("drawingDownloadBtn"),
+  drawingUploadBtn: document.getElementById("drawingUploadBtn"),
+  drawingStatus: document.getElementById("drawingStatus"),
   adminSection: document.getElementById("adminSection"),
   adminAssignForm: document.getElementById("adminAssignForm"),
   adminAssignNumber: document.getElementById("adminAssignNumber"),
@@ -132,6 +141,10 @@ let activeGeneration = "gen1";
 let unbindPokemonFeed = null;
 let unbindAdminFeed = null;
 let isAdminListClickBound = false;
+let drawingContext = null;
+let isDrawingActive = false;
+let drawingIsEraserMode = false;
+let drawingLastPoint = null;
 const GALLERY_FILTER_ALL_VALUE = "__all__";
 const GALLERY_UNKNOWN_AUTHOR = "Pseudo inconnu";
 const GALLERY_FILTER_STORAGE_PREFIX = "gooningmon-gallery-author-filter:";
@@ -298,6 +311,127 @@ function bindRouter() {
   });
   window.addEventListener("popstate", () => navigateTo(getAppPathFromLocation(), false));
   navigateTo(getAppPathFromLocation(), false);
+}
+
+function getDrawingPointerPosition(event) {
+  const rect = el.drawingCanvas.getBoundingClientRect();
+  const scaleX = el.drawingCanvas.width / rect.width;
+  const scaleY = el.drawingCanvas.height / rect.height;
+  return {
+    x: (event.clientX - rect.left) * scaleX,
+    y: (event.clientY - rect.top) * scaleY
+  };
+}
+
+function drawSegment(from, to) {
+  if (!drawingContext || !from || !to) return;
+  drawingContext.beginPath();
+  drawingContext.moveTo(from.x, from.y);
+  drawingContext.lineTo(to.x, to.y);
+  drawingContext.stroke();
+}
+
+function fillDrawingBackground() {
+  if (!drawingContext) return;
+  drawingContext.save();
+  drawingContext.globalCompositeOperation = "source-over";
+  drawingContext.fillStyle = "#ffffff";
+  drawingContext.fillRect(0, 0, el.drawingCanvas.width, el.drawingCanvas.height);
+  drawingContext.restore();
+}
+
+function refreshDrawingToolStyle() {
+  if (!drawingContext) return;
+  drawingContext.lineCap = "round";
+  drawingContext.lineJoin = "round";
+  drawingContext.lineWidth = Number(el.drawingBrushSize.value || 6);
+  drawingContext.globalCompositeOperation = drawingIsEraserMode ? "destination-out" : "source-over";
+  drawingContext.strokeStyle = el.drawingColor.value || "#ffffff";
+}
+
+function initializeDrawingPad() {
+  if (!el.drawingCanvas) return;
+  const ratio = window.devicePixelRatio || 1;
+  const size = 500;
+  el.drawingCanvas.width = Math.floor(size * ratio);
+  el.drawingCanvas.height = Math.floor(size * ratio);
+  drawingContext = el.drawingCanvas.getContext("2d");
+  if (!drawingContext) return;
+  drawingContext.scale(ratio, ratio);
+  fillDrawingBackground();
+  refreshDrawingToolStyle();
+}
+
+function setDrawingStatus(message, isError = false) {
+  if (!el.drawingStatus) return;
+  el.drawingStatus.textContent = message;
+  el.drawingStatus.style.color = isError ? "#ff718f" : "";
+}
+
+function bindDrawingEvents() {
+  if (!el.drawingCanvas || !drawingContext) return;
+
+  const start = (event) => {
+    isDrawingActive = true;
+    drawingLastPoint = getDrawingPointerPosition(event);
+    drawSegment(drawingLastPoint, drawingLastPoint);
+  };
+  const move = (event) => {
+    if (!isDrawingActive || !drawingLastPoint) return;
+    event.preventDefault();
+    const nextPoint = getDrawingPointerPosition(event);
+    drawSegment(drawingLastPoint, nextPoint);
+    drawingLastPoint = nextPoint;
+  };
+  const stop = () => {
+    isDrawingActive = false;
+    drawingLastPoint = null;
+  };
+
+  el.drawingCanvas.addEventListener("pointerdown", start);
+  el.drawingCanvas.addEventListener("pointermove", move);
+  el.drawingCanvas.addEventListener("pointerup", stop);
+  el.drawingCanvas.addEventListener("pointerleave", stop);
+
+  el.drawingColor.addEventListener("input", () => {
+    refreshDrawingToolStyle();
+  });
+  el.drawingBrushSize.addEventListener("input", () => {
+    refreshDrawingToolStyle();
+  });
+  el.drawingEraserBtn.addEventListener("click", () => {
+    drawingIsEraserMode = !drawingIsEraserMode;
+    el.drawingEraserBtn.textContent = drawingIsEraserMode ? "Pinceau" : "Gomme";
+    refreshDrawingToolStyle();
+  });
+  el.drawingClearBtn.addEventListener("click", () => {
+    drawingContext.clearRect(0, 0, el.drawingCanvas.width, el.drawingCanvas.height);
+    fillDrawingBackground();
+    setDrawingStatus("Zone effacée.");
+  });
+  el.drawingDownloadBtn.addEventListener("click", () => {
+    const link = document.createElement("a");
+    link.href = el.drawingCanvas.toDataURL("image/png");
+    link.download = `dessin-${Date.now()}.png`;
+    link.click();
+  });
+  el.drawingUploadBtn.addEventListener("click", async () => {
+    try {
+      setDrawingStatus("Envoi...");
+      const blob = await new Promise((resolve, reject) => {
+        el.drawingCanvas.toBlob((generatedBlob) => {
+          if (generatedBlob) resolve(generatedBlob);
+          else reject(new Error("Blob invalide."));
+        }, "image/png");
+      });
+      const file = new File([blob], `drawing-${Date.now()}.png`, { type: "image/png" });
+      await uploadDrawing(file);
+      setDrawingStatus("Dessin envoyé.");
+    } catch (err) {
+      setDrawingStatus(err.message || "Envoi impossible.", true);
+      showToast(err.message || "Envoi impossible.", true);
+    }
+  });
 }
 
 async function ensurePokemonPool() {
@@ -1771,7 +1905,9 @@ function bindEvents() {
 async function boot() {
   explainSetupIfNeeded();
   bindRouter();
+  initializeDrawingPad();
   bindEvents();
+  bindDrawingEvents();
   await loadActiveGeneration();
   await ensurePokemonPool();
   bindPokemonFeed();
