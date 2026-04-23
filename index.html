@@ -166,6 +166,27 @@
           </div>
 
           <p id="fresqueInfo" class="body-small"></p>
+          <section class="card-subsection fresque-export-panel">
+            <div class="section-head">
+              <h3 class="h3">Export par panneaux (Minecraft)</h3>
+              <button id="fresqueAddPanelBtn" type="button" class="btn btn-ghost">+ Panneau</button>
+            </div>
+            <div class="fresque-export-grid">
+              <label class="field-group">
+                <span class="label">Largeur totale (blocs)</span>
+                <input id="fresqueTotalWidthBlocks" type="number" min="1" step="1" value="11" />
+              </label>
+              <label class="field-group">
+                <span class="label">Hauteur totale (blocs)</span>
+                <input id="fresqueTotalHeightBlocks" type="number" min="1" step="1" value="5" />
+              </label>
+            </div>
+            <div id="fresquePanelsList" class="fresque-panels-list"></div>
+            <p id="fresquePanelsInfo" class="body-small">Configure les panneaux puis lance l’export.</p>
+            <div class="inline-group">
+              <button id="fresqueExportPanelsBtn" class="btn btn-primary" type="button">Exporter les panneaux</button>
+            </div>
+          </section>
           <div class="fresque-preview-wrap">
             <div id="fresqueGrid" class="fresque-grid"></div>
           </div>
