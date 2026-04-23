@@ -415,7 +415,7 @@ function renderDrawingLayersList() {
   const ordered = [...drawingLayers].reverse();
   el.drawingLayerList.innerHTML = ordered.map((layer) => `
     <button type="button" class="layer-item ${layer.id === drawingActiveLayerId ? "active" : ""}" data-layer-id="${layer.id}">
-      <span class="layer-eye">${layer.visible ? "👁️" : "🚫"}</span>
+      <span class="layer-eye material-symbols-rounded">${layer.visible ? "visibility" : "visibility_off"}</span>
       <span class="layer-name">${escapeHtml(layer.name)}</span>
       <span class="layer-opacity">${Math.round(layer.opacity * 100)}%</span>
     </button>
@@ -423,6 +423,7 @@ function renderDrawingLayersList() {
   const active = getActiveDrawingLayer();
   if (active && el.drawingLayerOpacity) {
     el.drawingLayerOpacity.value = String(Math.round(active.opacity * 100));
+    updateRangeVisual(el.drawingLayerOpacity);
   }
 }
 
@@ -437,6 +438,22 @@ function renderDrawingPalette() {
   el.drawingPaletteSwatches.innerHTML = drawingPalette.map((color) => `
     <button type="button" class="palette-chip ${color === el.drawingColor.value ? "active" : ""}" data-color="${color}" style="background:${color};" aria-label="Couleur ${color}"></button>
   `).join("");
+}
+
+function updateRangeVisual(input) {
+  if (!input || input.type !== "range") return;
+  const min = Number(input.min || 0);
+  const max = Number(input.max || 100);
+  const value = Number(input.value || min);
+  const ratio = max > min ? ((value - min) / (max - min)) * 100 : 0;
+  input.style.setProperty("--range-progress", `${Math.max(0, Math.min(100, ratio))}%`);
+}
+
+function initializeControlVisuals() {
+  document.querySelectorAll('input[type="range"]').forEach((rangeInput) => {
+    updateRangeVisual(rangeInput);
+    rangeInput.addEventListener("input", () => updateRangeVisual(rangeInput));
+  });
 }
 
 function saveDrawingPalette() {
@@ -629,7 +646,10 @@ function bindDrawingEvents() {
   el.drawingCanvas.addEventListener("pointerleave", stop);
 
   [el.drawingColor, el.drawingBrushSize, el.drawingBrushOpacity].forEach((input) => {
-    input?.addEventListener("input", () => renderDrawingPalette());
+    input?.addEventListener("input", () => {
+      renderDrawingPalette();
+      updateRangeVisual(input);
+    });
   });
 
   el.drawingToolBrushBtn.addEventListener("click", () => setActiveDrawingTool("brush"));
@@ -2474,6 +2494,7 @@ async function boot() {
   initializeDrawingPad();
   bindEvents();
   bindDrawingEvents();
+  initializeControlVisuals();
   await loadActiveGeneration();
   await ensurePokemonPool();
   bindPokemonFeed();
