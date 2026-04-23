@@ -171,6 +171,8 @@ const DRAWING_PALETTE_STORAGE_KEY = "gooningmon-drawing-palette-v1";
 const GALLERY_FILTER_ALL_VALUE = "__all__";
 const GALLERY_UNKNOWN_AUTHOR = "Pseudo inconnu";
 const GALLERY_FILTER_STORAGE_PREFIX = "gooningmon-gallery-author-filter:";
+const GALLERY_RATING_MIN = 1;
+const GALLERY_RATING_MAX = 5;
 let selectedGalleryAuthor = GALLERY_FILTER_ALL_VALUE;
 
 function normalizeUserPokemonEntry(entry, fallbackId = null) {
@@ -938,6 +940,44 @@ function getGalleryAuthorName(pokemon) {
   return sanitizeNickname(pokemon?.authorName) || GALLERY_UNKNOWN_AUTHOR;
 }
 
+function getRatingAverage(pokemon) {
+  if (!pokemon || !Number.isFinite(Number(pokemon.ratingAverage))) return 0;
+  const value = Number(pokemon.ratingAverage);
+  return Math.max(0, Math.min(GALLERY_RATING_MAX, value));
+}
+
+function getRatingCount(pokemon) {
+  const count = Number(pokemon?.ratingCount);
+  return Number.isInteger(count) && count > 0 ? count : 0;
+}
+
+function getMyRatingForPokemon(pokemon) {
+  if (!currentUser?.uid || !pokemon?.ratings) return 0;
+  const score = Number(pokemon.ratings[currentUser.uid]);
+  return Number.isInteger(score) && score >= GALLERY_RATING_MIN && score <= GALLERY_RATING_MAX ? score : 0;
+}
+
+function renderRatingStars(pokemon) {
+  const myRating = getMyRatingForPokemon(pokemon);
+  const stars = [];
+  for (let score = GALLERY_RATING_MIN; score <= GALLERY_RATING_MAX; score += 1) {
+    const isActive = myRating >= score;
+    stars.push(`
+      <button
+        type="button"
+        class="star-btn ${isActive ? "active" : ""}"
+        data-action="rate"
+        data-id="${pokemon.id}"
+        data-score="${score}"
+        title="Noter ${score}/5"
+        aria-label="Noter ${score} étoile${score > 1 ? "s" : ""}">
+        <span class="material-symbols-rounded" aria-hidden="true">star</span>
+      </button>
+    `);
+  }
+  return stars.join("");
+}
+
 function compareNames(a, b) {
   return a.localeCompare(b, "fr", { sensitivity: "base", numeric: true });
 }
@@ -1016,12 +1056,21 @@ function renderGallery() {
 
   el.gallery.innerHTML = visiblePokemon.map((p) => {
     const authorName = getGalleryAuthorName(p);
+    const ratingAverage = getRatingAverage(p);
+    const ratingCount = getRatingCount(p);
+    const ratingSummary = ratingCount
+      ? `${ratingAverage.toFixed(1)}/5 · ${ratingCount} vote${ratingCount > 1 ? "s" : ""}`
+      : "Pas encore de note";
     return `
     <article class="gallery-item">
       <img src="${p.imageUrl}" alt="Dessin de ${p.name}" loading="lazy" />
       <div class="gallery-meta">
         <strong class="gallery-title">#${String(p.id).padStart(3, "0")} ${p.name}</strong>
         <div class="small gallery-author" title="Par ${escapeHtml(authorName)}">Par ${escapeHtml(authorName)}</div>
+        <div class="gallery-rating">
+          <div class="gallery-rating-row">${renderRatingStars(p)}</div>
+          <div class="small rating-stats">${ratingSummary}</div>
+        </div>
         <button class="btn btn-secondary gallery-download-btn" type="button" data-id="${p.id}">
           Télécharger
         </button>
@@ -1067,6 +1116,40 @@ async function downloadPokemonImage(pokemonId) {
   } catch (err) {
     triggerDirectDownloadFallback(pokemon.imageUrl, fileName);
   }
+}
+
+function computeRatingAggregate(ratingsMap = {}) {
+  const values = Object.values(ratingsMap)
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value) && value >= GALLERY_RATING_MIN && value <= GALLERY_RATING_MAX);
+  if (!values.length) return { ratingAverage: 0, ratingCount: 0 };
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return {
+    ratingAverage: Number((total / values.length).toFixed(2)),
+    ratingCount: values.length
+  };
+}
+
+async function submitPokemonRating(pokemonId, score) {
+  if (!currentUser?.uid) {
+    showToast("Connecte-toi pour noter les dessins.", true);
+    return;
+  }
+  if (!Number.isInteger(score) || score < GALLERY_RATING_MIN || score > GALLERY_RATING_MAX) return;
+  const pokemonRef = ref(db, `${generationPokemonPath()}/${pokemonId}`);
+  await runTransaction(pokemonRef, (pokemon) => {
+    if (!pokemon || !pokemon.imageUrl) return pokemon;
+    const ratings = { ...(pokemon.ratings || {}) };
+    ratings[currentUser.uid] = score;
+    const aggregate = computeRatingAggregate(ratings);
+    return {
+      ...pokemon,
+      ratings,
+      ratingAverage: aggregate.ratingAverage,
+      ratingCount: aggregate.ratingCount,
+      ratingUpdatedAt: Date.now()
+    };
+  });
 }
 
 function computeFresqueLayout(total, mode, value, widthPx = 0, heightPx = 0) {
@@ -2133,6 +2216,19 @@ function bindEvents() {
     }
   });
   el.gallery.addEventListener("click", async (e) => {
+    const starButton = e.target.closest('[data-action="rate"]');
+    if (starButton) {
+      const pokemonId = Number(starButton.dataset.id);
+      const score = Number(starButton.dataset.score);
+      try {
+        await submitPokemonRating(pokemonId, score);
+      } catch (err) {
+        logFirebaseError("ratePokemon", err);
+        showToast("Impossible d'enregistrer la note.", true);
+      }
+      return;
+    }
+
     const button = e.target.closest(".gallery-download-btn");
     if (!button) return;
     const pokemonId = Number(button.dataset.id);
