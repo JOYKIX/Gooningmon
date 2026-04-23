@@ -199,26 +199,72 @@
         <section class="card drawings-card">
           <div class="drawings-head">
             <h2>Dessins</h2>
-            <p class="small">Dessine directement ici, puis envoie ton image.</p>
+            <p class="small">Mode pixel-art/line-art avec calques, opacité et palette perso (10 couleurs max).</p>
           </div>
 
-          <div class="drawings-tools">
-            <label>
-              Couleur
-              <input id="drawingColor" type="color" value="#ffffff" />
-            </label>
-            <label>
-              Taille
-              <input id="drawingBrushSize" type="range" min="1" max="40" value="6" />
-            </label>
-            <button id="drawingEraserBtn" type="button" class="btn btn-secondary">Gomme</button>
-            <button id="drawingClearBtn" type="button" class="btn btn-ghost">Effacer</button>
+          <div class="drawings-studio">
+            <div class="drawings-main">
+              <div class="drawings-tools">
+                <div class="tool-group">
+                  <button id="drawingToolBrushBtn" type="button" class="btn btn-secondary tool-btn active">Pinceau</button>
+                  <button id="drawingToolEraserBtn" type="button" class="btn btn-secondary tool-btn">Gomme</button>
+                  <button id="drawingToolFillBtn" type="button" class="btn btn-secondary tool-btn">Pot de peinture</button>
+                  <button id="drawingToolPickerBtn" type="button" class="btn btn-secondary tool-btn">Pipette</button>
+                </div>
+                <div class="tool-group">
+                  <button id="drawingUndoBtn" type="button" class="btn btn-ghost">Annuler</button>
+                  <button id="drawingRedoBtn" type="button" class="btn btn-ghost">Rétablir</button>
+                  <button id="drawingClearLayerBtn" type="button" class="btn btn-ghost">Effacer calque</button>
+                </div>
+                <label>
+                  Couleur active
+                  <input id="drawingColor" type="color" value="#111111" />
+                </label>
+                <label>
+                  Taille pinceau
+                  <input id="drawingBrushSize" type="range" min="1" max="60" value="6" />
+                </label>
+                <label>
+                  Opacité pinceau
+                  <input id="drawingBrushOpacity" type="range" min="1" max="100" value="100" />
+                </label>
+              </div>
+
+              <div class="drawing-palette card-subsection">
+                <div class="palette-head">
+                  <strong>Palette perso</strong>
+                  <button id="drawingAddPaletteColorBtn" type="button" class="btn btn-ghost">+ Ajouter couleur</button>
+                </div>
+                <div id="drawingPaletteSwatches" class="palette-swatches"></div>
+                <p class="small">Clique gauche: utiliser. Clique droit: supprimer.</p>
+              </div>
+
+              <div class="drawing-canvas-wrap">
+                <canvas id="drawingCanvas" width="500" height="500" aria-label="Zone de dessin"></canvas>
+              </div>
+            </div>
+
+            <aside class="drawing-layers card-subsection">
+              <div class="layers-head">
+                <strong>Calques</strong>
+                <button id="drawingAddLayerBtn" type="button" class="btn btn-ghost">+ Calque</button>
+              </div>
+              <div id="drawingLayerList" class="layer-list"></div>
+              <div class="layer-actions">
+                <button id="drawingLayerUpBtn" type="button" class="btn btn-ghost">Monter</button>
+                <button id="drawingLayerDownBtn" type="button" class="btn btn-ghost">Descendre</button>
+                <button id="drawingDeleteLayerBtn" type="button" class="btn btn-ghost">Supprimer</button>
+              </div>
+              <label>
+                Opacité du calque actif
+                <input id="drawingLayerOpacity" type="range" min="0" max="100" value="100" />
+              </label>
+            </aside>
+          </div>
+
+          <div class="drawings-actions">
             <button id="drawingDownloadBtn" type="button" class="btn btn-secondary">Télécharger PNG</button>
             <button id="drawingUploadBtn" type="button" class="btn">Envoyer le dessin</button>
-          </div>
-
-          <div class="drawing-canvas-wrap">
-            <canvas id="drawingCanvas" width="500" height="500" aria-label="Zone de dessin"></canvas>
           </div>
           <p id="drawingStatus" class="small">Prêt à dessiner.</p>
         </section>
