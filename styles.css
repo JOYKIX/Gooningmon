@@ -404,6 +404,19 @@ button.ghost:hover {
   gap: 0.35rem;
 }
 
+.gallery-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(200px, 1fr));
+  gap: 0.65rem;
+  width: min(100%, 760px);
+}
+
+@media (max-width: 1200px) {
+  .gallery-filter-grid {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+}
+
 .gallery-filter label {
   font-weight: 600;
 }
@@ -823,6 +836,11 @@ button.ghost:hover {
   .gallery-filter {
     min-width: 0;
   }
+
+  .gallery-filter-grid {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
 }
 
 .material-symbols-rounded {
@@ -897,42 +915,6 @@ button {
   opacity: 0.95;
 }
 
-.gallery-rating {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.gallery-rating-row {
-  display: flex;
-  gap: 0.2rem;
-}
-
-.star-btn {
-  min-width: 0;
-  padding: 0.22rem;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  color: #ffc766;
-  box-shadow: none;
-}
-
-.star-btn:hover {
-  transform: translateY(0);
-  background: rgba(255, 199, 102, 0.22);
-  border-color: rgba(255, 199, 102, 0.4);
-  box-shadow: none;
-}
-
-.star-btn .material-symbols-rounded {
-  font-size: 1.2rem;
-  font-variation-settings: "FILL" 0;
-}
-
-.star-btn.active .material-symbols-rounded {
-  font-variation-settings: "FILL" 1;
-}
-
-.rating-stats {
+.gallery-date {
   color: #d6d7e8;
 }
