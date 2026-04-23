@@ -43,6 +43,7 @@ const ROUTES = {
   "/galerie": "view-galerie",
   "/fresque": "view-fresque",
   "/dessins": "view-dessins",
+  "/compte": "view-compte",
   "/admin": "view-admin"
 };
 
@@ -75,6 +76,7 @@ const el = {
   navTabs: document.querySelectorAll(".nav-tab"),
   adminNavTab: document.getElementById("adminNavTab"),
   topbarUserPhoto: document.getElementById("topbarUserPhoto"),
+  topbarAvatarFallback: document.getElementById("topbarAvatarFallback"),
   topbarUserName: document.getElementById("topbarUserName"),
   topbarUserRole: document.getElementById("topbarUserRole"),
   authLoggedOut: document.getElementById("authLoggedOut"),
@@ -82,13 +84,20 @@ const el = {
   authUserPhoto: document.getElementById("authUserPhoto"),
   authUserName: document.getElementById("authUserName"),
   authUserEmail: document.getElementById("authUserEmail"),
+  accountAvatarFallback: document.getElementById("accountAvatarFallback"),
+  accountRole: document.getElementById("accountRole"),
+  accountCreatedAt: document.getElementById("accountCreatedAt"),
+  accountPokemonStatus: document.getElementById("accountPokemonStatus"),
+  accountLastUpload: document.getElementById("accountLastUpload"),
+  homePokemonState: document.getElementById("homePokemonState"),
+  homeLastUpload: document.getElementById("homeLastUpload"),
   nicknameForm: document.getElementById("nicknameForm"),
   nicknameInput: document.getElementById("nicknameInput"),
   nicknameBtn: document.getElementById("nicknameBtn"),
   authStatus: document.getElementById("authStatus"),
   googleLoginBtn: document.getElementById("googleLoginBtn"),
   logoutBtn: document.getElementById("logoutBtn"),
-  appSection: document.getElementById("appSection"),
+  appSection: document.getElementById("uploadForm"),
   welcomeText: document.getElementById("welcomeText"),
   statusText: document.getElementById("statusText"),
   pokemonCard: document.getElementById("pokemonCard"),
@@ -153,6 +162,9 @@ const el = {
   generationSelect: document.getElementById("generationSelect"),
   changeGenerationBtn: document.getElementById("changeGenerationBtn"),
   adminList: document.getElementById("adminList"),
+  adminStatusFilter: document.getElementById("adminStatusFilter"),
+  adminSearchInput: document.getElementById("adminSearchInput"),
+  adminHideCompleted: document.getElementById("adminHideCompleted"),
   toast: document.getElementById("toast")
 };
 
@@ -163,7 +175,13 @@ let completedPokemonList = [];
 let activeGeneration = "gen1";
 let unbindPokemonFeed = null;
 let unbindAdminFeed = null;
+let unbindAdminUsersFeed = null;
 let isAdminListClickBound = false;
+let adminPokemonCache = [];
+let adminUserNameMap = {};
+let adminStatusFilter = "all";
+let adminSearchQuery = "";
+let adminHideCompleted = false;
 let drawingContext = null;
 let isDrawingActive = false;
 let drawingLastPoint = null;
@@ -804,11 +822,15 @@ async function syncCurrentUserFromAuth(authUser) {
   currentUser = { id: authUser.uid, ...merged };
 }
 
+function formatAccountCreatedAt(timestamp) {
+  if (!timestamp) return "Inscription: inconnue";
+  return `Inscription: ${new Date(timestamp).toLocaleDateString("fr-FR")}`;
+}
+
 function renderAuthState() {
   const logged = Boolean(currentUser);
   el.authLoggedOut.classList.toggle("hidden", logged);
   el.authLoggedIn.classList.toggle("hidden", !logged);
-  el.appSection.classList.toggle("hidden", !logged);
 
   if (!logged) {
     el.authStatus.textContent = IS_GITHUB_PAGES
@@ -816,8 +838,12 @@ function renderAuthState() {
       : `Non connecté. Pour GitHub Pages, ouvre ce site depuis https://${EXPECTED_HOSTNAME}.`;
     el.authUserPhoto.classList.add("hidden");
     el.authUserPhoto.removeAttribute("src");
-    el.authUserName.textContent = "Compte";
+    el.authUserName.textContent = "Invité";
     el.authUserEmail.textContent = "";
+    el.accountRole.textContent = "Rôle: invité";
+    el.accountCreatedAt.textContent = "Inscription: inconnue";
+    if (el.accountAvatarFallback) el.accountAvatarFallback.classList.remove("hidden");
+    if (el.topbarAvatarFallback) el.topbarAvatarFallback.classList.remove("hidden");
     if (el.topbarUserName) el.topbarUserName.textContent = "Invité";
     if (el.topbarUserRole) el.topbarUserRole.textContent = "Non connecté";
     if (el.topbarUserPhoto) {
@@ -825,10 +851,11 @@ function renderAuthState() {
       el.topbarUserPhoto.removeAttribute("src");
     }
     el.welcomeText.textContent = "Compte";
-    el.statusText.textContent = "";
+    el.statusText.textContent = "Connecte-toi pour récupérer ton Pokémon.";
     el.adminSection.classList.add("hidden");
     el.adminNavTab?.classList.add("hidden");
     el.rerollInfo.textContent = "";
+    renderMyPokemon();
     return;
   }
 
@@ -839,20 +866,24 @@ function renderAuthState() {
   if (currentUser.photoURL) {
     el.authUserPhoto.src = currentUser.photoURL;
     el.authUserPhoto.classList.remove("hidden");
+    el.topbarUserPhoto.src = currentUser.photoURL;
+    el.topbarUserPhoto.classList.remove("hidden");
+    el.accountAvatarFallback?.classList.add("hidden");
+    el.topbarAvatarFallback?.classList.add("hidden");
   } else {
     el.authUserPhoto.classList.add("hidden");
+    el.topbarUserPhoto.classList.add("hidden");
+    el.accountAvatarFallback?.classList.remove("hidden");
+    el.topbarAvatarFallback?.classList.remove("hidden");
   }
 
   const roleLabel = currentUser.role === "admin" ? "Administrateur" : "Utilisateur";
+  el.accountRole.textContent = `Rôle: ${roleLabel}`;
+  el.accountCreatedAt.textContent = formatAccountCreatedAt(currentUser.createdAt);
+
   if (el.topbarUserName) el.topbarUserName.textContent = currentUser.displayName || "Pseudo requis";
   if (el.topbarUserRole) el.topbarUserRole.textContent = roleLabel;
-  if (el.topbarUserPhoto && currentUser.photoURL) {
-    el.topbarUserPhoto.src = currentUser.photoURL;
-    el.topbarUserPhoto.classList.remove("hidden");
-  } else if (el.topbarUserPhoto) {
-    el.topbarUserPhoto.classList.add("hidden");
-    el.topbarUserPhoto.removeAttribute("src");
-  }
+
   if (!hasNickname()) {
     el.authStatus.textContent = "Ajoute un pseudo.";
     el.welcomeText.textContent = "Pseudo requis";
@@ -883,6 +914,8 @@ function renderMyPokemon() {
     el.rerollBtn.disabled = true;
     el.uploadBtn.disabled = true;
     el.uploadState.textContent = "Pseudo requis.";
+    el.homePokemonState.textContent = "Pseudo requis";
+    el.accountPokemonStatus.textContent = "Pseudo requis";
     el.restartBtn.classList.add("hidden");
     return;
   }
@@ -894,16 +927,19 @@ function renderMyPokemon() {
     el.rerollBtn.disabled = true;
     el.uploadBtn.disabled = true;
     el.uploadState.textContent = "En attente.";
+    el.homePokemonState.textContent = "Aucun";
+    el.accountPokemonStatus.textContent = "Aucun";
     el.restartBtn.classList.add("hidden");
     return;
   }
 
-  const statusClass = currentPokemon.status === "completed" ? "completed" : "assigned";
+  const statusClass = currentPokemon.status === "completed" ? "status-completed" : "status-assigned";
+  const statusLabel = currentPokemon.status === "completed" ? "Terminé" : "En cours";
   el.pokemonCard.className = "pokemon-card";
   el.pokemonCard.innerHTML = `
     <div class="pokemon-id">#${String(currentPokemon.id).padStart(3, "0")}</div>
     <div class="pokemon-name">${currentPokemon.name}</div>
-    <span class="badge ${statusClass}">${currentPokemon.status === "completed" ? "Terminé" : "En cours"}</span>
+    <span class="badge ${statusClass}">${statusLabel}</span>
   `;
 
   const isAssigned = currentPokemon.status === "assigned";
@@ -913,6 +949,9 @@ function renderMyPokemon() {
   el.rerollBtn.disabled = !isAssigned || rerollsUsed >= MAX_REROLLS;
   el.uploadBtn.disabled = !isAssigned;
   el.uploadState.textContent = isAssigned ? "Prêt." : "Terminé.";
+  const statusText = `#${String(currentPokemon.id).padStart(3, "0")} ${currentPokemon.name} · ${statusLabel}`;
+  el.homePokemonState.textContent = statusText;
+  el.accountPokemonStatus.textContent = statusText;
   el.restartBtn.classList.toggle("hidden", !isCompleted);
 }
 
@@ -1133,10 +1172,7 @@ function renderGallery() {
         <strong class="gallery-title">#${String(p.id).padStart(3, "0")} ${p.name}</strong>
         <div class="small gallery-author" title="Par ${escapeHtml(authorName)}">Par ${escapeHtml(authorName)}</div>
         <div class="small gallery-date">${completedDate ? `Publié le ${completedDate}` : "Date inconnue"}</div>
-        <div class="small gallery-rating">Note communauté · —</div>
-        <button class="btn btn-secondary gallery-download-btn" type="button" data-id="${p.id}">
-          Télécharger
-        </button>
+        <button class="btn btn-secondary gallery-download-btn" type="button" data-id="${p.id}">Télécharger</button>
       </div>
     </article>
   `;
@@ -1704,32 +1740,76 @@ async function adminSetAvailable(pokemon) {
   showToast(`Pokémon #${pokemon.id} remis disponible.`);
 }
 
+function getAdminStatusMeta(status) {
+  if (status === "completed") return { label: "Terminé", className: "status-completed" };
+  if (status === "assigned") return { label: "En cours", className: "status-assigned" };
+  return { label: "Disponible", className: "status-available" };
+}
+
+function renderAdminList() {
+  if (!el.adminList) return;
+  const query = normalizePokemonName(adminSearchQuery);
+  let items = [...adminPokemonCache];
+
+  if (adminHideCompleted) {
+    items = items.filter((pokemon) => pokemon.status !== "completed");
+  }
+  if (adminStatusFilter !== "all") {
+    items = items.filter((pokemon) => pokemon.status === adminStatusFilter);
+  }
+  if (query) {
+    items = items.filter((pokemon) => {
+      const pokemonNumber = String(pokemon.id || "");
+      const pokemonName = normalizePokemonName(pokemon.name || "");
+      const author = normalizePokemonName(sanitizeNickname(pokemon.authorName) || adminUserNameMap[pokemon.userId] || "");
+      return pokemonNumber.includes(query) || pokemonName.includes(query) || author.includes(query);
+    });
+  }
+
+  if (!items.length) {
+    el.adminList.innerHTML = '<tr><td colspan="5" class="body-small">Aucun Pokémon pour ce filtre.</td></tr>';
+    return;
+  }
+
+  el.adminList.innerHTML = items.map((pokemon) => {
+    const status = getAdminStatusMeta(pokemon.status);
+    const author = sanitizeNickname(pokemon.authorName) || adminUserNameMap[pokemon.userId] || "—";
+    return `
+      <tr>
+        <td>#${String(pokemon.id).padStart(3, "0")}</td>
+        <td><strong>${escapeHtml(pokemon.name || "Inconnu")}</strong></td>
+        <td><span class="badge ${status.className}">${status.label}</span></td>
+        <td>${escapeHtml(author)}</td>
+        <td>
+          <div class="admin-actions">
+            ${pokemon.status === "completed" ? `<button type="button" class="admin-action-btn" data-action="delete-drawing" data-id="${pokemon.id}">Supprimer</button>` : ""}
+            ${pokemon.status === "assigned" ? `<button type="button" class="admin-action-btn" data-action="reset-inprogress" data-id="${pokemon.id}">Reset</button>` : ""}
+            <button type="button" class="admin-action-btn" data-action="force-available" data-id="${pokemon.id}">Disponible</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
 function bindAdmin() {
   if (unbindAdminFeed) unbindAdminFeed();
+  if (unbindAdminUsersFeed) unbindAdminUsersFeed();
+
   unbindAdminFeed = onValue(ref(db, generationPokemonPath()), (snap) => {
     if (!currentUser?.isAdmin) return;
-    const items = Object.values(snap.val() || {})
-      .filter((p) => p.status !== "available")
-      .sort((a, b) => a.id - b.id);
+    const value = snap.val() || {};
+    adminPokemonCache = Object.values(value).sort((a, b) => (a.id || 0) - (b.id || 0));
+    renderAdminList();
+  });
 
-    if (!items.length) {
-      el.adminList.innerHTML = '<p class="small">Rien.</p>';
-      return;
-    }
-
-    el.adminList.innerHTML = items.map((p) => `
-      <div class="admin-row">
-        <div>
-          <strong>#${String(p.id).padStart(3, "0")} ${p.name}</strong>
-          <div class="small">Statut: ${p.status} ${p.userId ? `· UID: ${p.userId}` : ""}</div>
-        </div>
-        <div class="admin-actions">
-          ${p.status === "completed" ? `<button data-action="delete-drawing" data-id="${p.id}">Supprimer</button>` : ""}
-          ${p.status === "assigned" ? `<button data-action="reset-inprogress" data-id="${p.id}">Reset</button>` : ""}
-          <button data-action="force-available" data-id="${p.id}" class="ghost">Disponible</button>
-        </div>
-      </div>
-    `).join("");
+  unbindAdminUsersFeed = onValue(ref(db, generationUsersPath()), (snap) => {
+    const users = snap.val() || {};
+    adminUserNameMap = Object.entries(users).reduce((acc, [uid, userData]) => {
+      acc[uid] = sanitizeNickname(userData?.displayName) || "Pseudo inconnu";
+      return acc;
+    }, {});
+    renderAdminList();
   });
 
   if (isAdminListClickBound) return;
@@ -1741,7 +1821,6 @@ function bindAdmin() {
     try {
       const snap = await get(ref(db, `${generationPokemonPath()}/${btn.dataset.id}`));
       if (!snap.exists()) return;
-
       await adminSetAvailable(snap.val());
       await syncCurrentUser();
       await syncCurrentPokemon();
@@ -2228,7 +2307,10 @@ function bindEvents() {
 
   el.drawingFile.addEventListener("change", () => {
     const file = el.drawingFile.files?.[0];
-    el.uploadFileInfo.textContent = file ? `Fichier: ${file.name}` : "Aucun fichier.";
+    const label = file ? `Fichier: ${file.name}` : "Aucun fichier.";
+    el.uploadFileInfo.textContent = label;
+    el.homeLastUpload.textContent = label;
+    el.accountLastUpload.textContent = label;
   });
 
   el.uploadForm.addEventListener("submit", async (e) => {
@@ -2241,6 +2323,8 @@ function bindEvents() {
       el.uploadForm.reset();
       el.uploadFileInfo.textContent = "Aucun fichier.";
       el.uploadState.textContent = "Terminé.";
+      el.homeLastUpload.textContent = "Dernier envoi terminé.";
+      el.accountLastUpload.textContent = "Dernier envoi terminé.";
     } catch (err) {
       el.uploadState.textContent = "Erreur upload.";
       showToast(err.message || "Upload impossible.", true);
@@ -2356,6 +2440,23 @@ function bindEvents() {
       showToast(err.message || "Changement impossible.", true);
     }
   });
+  el.adminStatusFilter?.addEventListener("change", (e) => {
+    adminStatusFilter = e.target.value || "all";
+    renderAdminList();
+  });
+  el.adminSearchInput?.addEventListener("input", (e) => {
+    adminSearchQuery = (e.target.value || "").slice(0, 40);
+    renderAdminList();
+  });
+  el.adminHideCompleted?.addEventListener("change", (e) => {
+    adminHideCompleted = Boolean(e.target.checked);
+    if (adminHideCompleted && adminStatusFilter === "completed") {
+      adminStatusFilter = "all";
+      el.adminStatusFilter.value = "all";
+    }
+    renderAdminList();
+  });
+
   el.adminAssignForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!currentUser?.isAdmin) return;
