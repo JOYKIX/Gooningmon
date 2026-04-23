@@ -17,6 +17,7 @@
         <button class="nav-tab" data-route="/" type="button">Accueil</button>
         <button class="nav-tab" data-route="/galerie" type="button">Galerie</button>
         <button class="nav-tab" data-route="/fresque" type="button">Fresque</button>
+        <button class="nav-tab" data-route="/dessins" type="button">Dessins</button>
       </nav>
     </header>
 
@@ -191,6 +192,35 @@
 
           <p id="fresqueInfo" class="small"></p>
           <div id="fresqueGrid" class="fresque-grid"></div>
+        </section>
+      </section>
+
+      <section id="view-dessins" class="route-view hidden">
+        <section class="card drawings-card">
+          <div class="drawings-head">
+            <h2>Dessins</h2>
+            <p class="small">Dessine directement ici, puis envoie ton image.</p>
+          </div>
+
+          <div class="drawings-tools">
+            <label>
+              Couleur
+              <input id="drawingColor" type="color" value="#ffffff" />
+            </label>
+            <label>
+              Taille
+              <input id="drawingBrushSize" type="range" min="1" max="40" value="6" />
+            </label>
+            <button id="drawingEraserBtn" type="button" class="btn btn-secondary">Gomme</button>
+            <button id="drawingClearBtn" type="button" class="btn btn-ghost">Effacer</button>
+            <button id="drawingDownloadBtn" type="button" class="btn btn-secondary">Télécharger PNG</button>
+            <button id="drawingUploadBtn" type="button" class="btn">Envoyer le dessin</button>
+          </div>
+
+          <div class="drawing-canvas-wrap">
+            <canvas id="drawingCanvas" width="500" height="500" aria-label="Zone de dessin"></canvas>
+          </div>
+          <p id="drawingStatus" class="small">Prêt à dessiner.</p>
         </section>
       </section>
     </main>
