@@ -110,7 +110,9 @@ const el = {
   drawingFile: document.getElementById("drawingFile"),
   uploadFileInfo: document.getElementById("uploadFileInfo"),
   uploadState: document.getElementById("uploadState"),
-  galleryProgress: document.getElementById("galleryProgress"),
+  galleryProgressText: document.getElementById("galleryProgressText"),
+  galleryProgressBar: document.getElementById("galleryProgressBar"),
+  galleryProgressFill: document.getElementById("galleryProgressFill"),
   galleryAuthorFilter: document.getElementById("galleryAuthorFilter"),
   gallerySearchInput: document.getElementById("gallerySearchInput"),
   gallerySortSelect: document.getElementById("gallerySortSelect"),
@@ -1034,11 +1036,22 @@ function buildPokemonDownloadName(pokemon) {
   return `${number}-${name}.${extension}`;
 }
 
+function updateGalleryProgress(currentCount, totalCount) {
+  const safeCurrentCount = Math.max(0, Number(currentCount) || 0);
+  const safeTotalCount = Math.max(0, Number(totalCount) || 0);
+  const percent = safeTotalCount > 0
+    ? Math.round((safeCurrentCount / safeTotalCount) * 100)
+    : 0;
+  const clampedPercent = Math.max(0, Math.min(100, percent));
+  const fillPercent = clampedPercent > 0 ? Math.max(1, clampedPercent) : 0;
+
+  el.galleryProgressText.textContent = `${safeCurrentCount} / ${safeTotalCount} (${clampedPercent}%)`;
+  el.galleryProgressFill.style.width = `${fillPercent}%`;
+  el.galleryProgressBar.setAttribute("aria-valuenow", String(clampedPercent));
+}
+
 function renderGalleryProgress() {
-  const done = completedPokemonList.length;
-  const total = POKEMON_151.length;
-  const percent = total ? Math.round((done / total) * 100) : 0;
-  el.galleryProgress.textContent = `${done}/${total} (${percent}%)`;
+  updateGalleryProgress(completedPokemonList.length, POKEMON_151.length);
 }
 
 function getGalleryAuthorName(pokemon) {
