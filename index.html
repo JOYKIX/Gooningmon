@@ -103,7 +103,20 @@
             <p class="eyebrow">Communauté</p>
             <h1 class="h1">Galerie</h1>
           </div>
-          <p id="galleryProgress" class="badge subtle">0/151 (0%)</p>
+          <div class="gallery-progress" aria-live="polite">
+            <p id="galleryProgressText" class="gallery-progress-text">0 / 151 (0%)</p>
+            <div
+              id="galleryProgressBar"
+              class="gallery-progress-bar"
+              role="progressbar"
+              aria-label="Progression de la galerie"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+            >
+              <div id="galleryProgressFill" class="gallery-progress-fill"></div>
+            </div>
+          </div>
         </div>
 
         <section class="card panel">
